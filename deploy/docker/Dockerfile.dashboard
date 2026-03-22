@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml .
+COPY agency_os/ agency_os/
+COPY vendor/ vendor/
+
+RUN pip install --no-cache-dir -e ".[dashboard]"
+
+RUN useradd --create-home appuser
+USER appuser
+
+EXPOSE 8501
+CMD ["streamlit", "run", "agency_os/dashboard/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]

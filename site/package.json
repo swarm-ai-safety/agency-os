@@ -1,0 +1,42 @@
+{
+  "name": "zero-human-labs",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=22 <23",
+    "npm": ">=10 <12"
+  },
+  "scripts": {
+    "preinstall": "node ./scripts/ensure-node-version.mjs",
+    "dev": "next dev --turbopack",
+    "build": "node ./scripts/validate-discord-invite.mjs && NODE_ENV=production next build",
+    "start": "next start",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ./node_modules/vitest/vitest.mjs",
+    "test:coverage": "node ./scripts/run-vitest-coverage.mjs && node ./scripts/check-coverage-guardrail.mjs",
+    "check:discord-invite": "node ./scripts/validate-discord-invite.mjs"
+  },
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remark": "^15.0.1",
+    "remark-html": "^16.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.4.0",
+    "@types/react": "^19.2.14",
+    "@vitest/coverage-v8": "^4.0.18",
+    "jsdom": "^28.1.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

@@ -1,0 +1,59 @@
+---
+description: "Streamlit dashboard for monitoring simulation metrics, including replay-based incoherence analytics."
+---
+
+# Dashboard
+
+Streamlit dashboard for monitoring simulation metrics, including replay-based
+incoherence analytics.
+
+## Running the Dashboard
+
+```bash
+# Generate and run dashboard
+streamlit run swarm/analysis/streamlit_app.py
+```
+
+## Programmatic Usage
+
+```python
+from swarm.analysis import (
+    DashboardState,
+    MetricSnapshot,
+    AgentSnapshot,
+    extract_metrics_from_orchestrator,
+    extract_agent_snapshots,
+    run_dashboard,
+)
+
+# Extract metrics from orchestrator
+snapshot = extract_metrics_from_orchestrator(orchestrator)
+
+# Create dashboard state
+state = DashboardState()
+state.update_metrics(snapshot)
+
+# Extract agent snapshots
+for agent_snapshot in extract_agent_snapshots(orchestrator):
+    state.update_agent(agent_snapshot)
+
+# Export to JSON
+json_data = state.export_to_json()
+
+# Run dashboard (opens in browser)
+run_dashboard(port=8501)
+```
+
+## Dashboard Features
+
+- **Metrics Over Time**: Toxicity rate, quality gap, welfare trends
+- **Agent Distribution**: Type breakdown, reputation rankings
+- **Governance Metrics**: Costs, audits, frozen agents
+- **Incoherence Analytics**: Time-series and scatter views for disagreement, error, and incoherence index
+- **Boundary Metrics**: Crossings, blocked attempts, leakage events
+- **Event Log**: Recent interactions and governance actions
+
+## Related Notes
+
+- Incoherence scaling artifact: `docs/analysis/incoherence_scaling.md`
+- Transferability caveats: `docs/transferability/incoherence_governance.md`

@@ -1,0 +1,73 @@
+# Adversarial Agent Alignment Test
+# Mirror-match style alignment evaluation using SWARM's adversarial framework.
+# Provider: swarm_safety_agent | Price: $20/run
+
+service_id: alignment_test
+name: "Adversarial Agent Alignment Test"
+description: >
+  Stress-tests agent alignment using SWARM's adversarial agent framework.
+  Pits the target agent against deceptive, opportunistic, and adversarial
+  agents in mirror-match scenarios. Measures alignment stability under
+  pressure and reports an alignment grade (A through F).
+  Used by research labs for adversarial experiments.
+category: evaluation
+swarm_module: "swarm.agents"
+handler: "agency_os.marketplace.handlers.run_alignment_test"
+version: "1.0.0"
+
+capabilities:
+  - adversarial_alignment_test
+  - agent_stress_test
+  - alignment_mirror_match
+  - deception_resistance_eval
+
+pricing:
+  model: per_iteration
+  base_price_usd: 20.0
+  per_unit_usd: 3.0
+  unit_name: "scenario"
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 180.0
+  availability_target: 0.99
+  max_concurrent_requests: 3
+
+input_schema:
+  type: object
+  properties:
+    agent_config:
+      type: object
+      description: "Configuration of the agent to test"
+    num_scenarios:
+      type: integer
+      description: "Number of adversarial scenarios to run"
+      default: 5
+    adversary_types:
+      type: array
+      items:
+        type: string
+        enum: ["deceptive", "opportunistic", "adversarial", "all"]
+      default: ["all"]
+  required: []
+
+output_schema:
+  type: object
+  properties:
+    alignment_score:
+      type: number
+      description: "Alignment stability score (0.0-1.0)"
+    alignment_grade:
+      type: string
+      description: "Letter grade (A, A-, B+, B, C, F)"
+    vulnerability_report:
+      type: object
+    scenario_results:
+      type: array
+
+tags:
+  - alignment
+  - adversarial
+  - stress-test
+  - evaluation
+  - safety

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /welcome
+
+Sitemap: https://zero-human-labs.com/sitemap.xml

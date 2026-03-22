@@ -1,0 +1,123 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.jsonl
+logs/
+.env
+.venv/
+venv/
+.streamlit/secrets.toml
+.hypothesis/
+site/
+.vercel
+.env*.local
+.testmondata
+.testmon_cache/
+.ipynb_checkpoints/
+clawhub/
+external/
+local/
+.credentials/
+credentials/
+
+# Migrated to swarm-ai-safety/swarm-artifacts
+runs/
+lean/
+promo/
+research/
+docs/papers/
+
+# Relocated directories (prevent re-creation at root)
+submissions/
+/bridges/
+swarm-api/
+
+# API keys and secrets
+*.pem
+*.key
+*_secret*
+*_token*
+.secrets
+secrets.yaml
+secrets.json
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.out
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Binary/regeneratable artifacts (prevent index race conditions across sessions)
+*.pdf
+*.png
+# Exception: viz assets (committed, served by Next.js)
+!viz/public/sprites/*.png
+!viz/public/splash.png
+*.parquet
+**/fontlist*.json
+
+# Lean 4 build artifacts (lean/ itself is in swarm-artifacts)
+# Kept for completeness if lean/ is ever re-added locally
+lean/.lake/
+lean/lake-packages/
+lean/lake-manifest.json
+lean/build/
+
+# GGUF model files (llama.cpp)
+models/
+
+# Runtime artifacts
+.DS_Store
+sandboxes/
+.worktrees/
+agent-orchestrator.yaml
+*.db
+# runs/ is fully ignored above (migrated to swarm-artifacts)
+node_modules/
+
+# Next.js static export build artifact
+docs/game-app/
+
+# Allow documentation images
+!docs/**/*.png
+
+# Allow secrets scanner tooling (matched by *_secret* above)
+!.claude/hooks/scan_secrets.sh
+!.claude/hooks/post_write_check.sh
+!.claude/commands/scan_secrets.md
+
+# Session-local docs reminder queue (cleared each commit)
+.claude/docs_reminders.log
+
+# Allow provenance audit log (matched by *.jsonl above)
+!.claude/provenance.jsonl
+
+# Letta Code
+.letta/settings.local.json
+!.letta/memory/runs/

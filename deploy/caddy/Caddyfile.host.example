@@ -1,0 +1,21 @@
+{
+    email ops@zero-human-labs.com
+}
+
+api.zero-human-labs.com {
+    reverse_proxy 127.0.0.1:8000
+}
+
+zero-human-labs.com, www.zero-human-labs.com {
+    root * /var/www/zero-human-labs/out
+    file_server
+    try_files {path} {path}.html /index.html
+
+    header {
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.zero-human-labs.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+}

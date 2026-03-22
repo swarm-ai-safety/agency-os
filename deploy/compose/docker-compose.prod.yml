@@ -1,0 +1,118 @@
+services:
+  migrate:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    env_file: ../../.env
+    environment:
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/agency_os.db}
+    volumes:
+      - app_data:/app/data
+    networks:
+      - web
+
+  site:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.site
+    env_file: ../../.env
+    environment:
+      - AGENCY_OS_API_URL=http://api:8000
+    expose:
+      - "3000"
+    networks:
+      - web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: ../../.env
+    environment:
+      - DOMAIN=${DOMAIN}
+      - API_UPSTREAM=${API_UPSTREAM:-api:8000}
+    networks:
+      - web
+    restart: unless-stopped
+    depends_on:
+      site:
+        condition: service_started
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    expose:
+      - "8000"
+    env_file: ../../.env
+    environment:
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/agency_os.db}
+      - CORS_ORIGINS=https://${DOMAIN}
+    volumes:
+      - app_data:/app/data
+    networks:
+      - web
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.worker
+    env_file: ../../.env
+    environment:
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/agency_os.db}
+    volumes:
+      - app_data:/app/data
+    networks:
+      - web
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dashboard
+    expose:
+      - "8501"
+    env_file: ../../.env
+    environment:
+      - API_URL=http://api:8000
+    networks:
+      - web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  app_data:
+
+networks:
+  web:
+    driver: bridge

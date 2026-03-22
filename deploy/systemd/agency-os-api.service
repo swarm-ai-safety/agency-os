@@ -1,0 +1,24 @@
+[Unit]
+Description=Agency-OS FastAPI backend
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/agency-os
+EnvironmentFile=/etc/agency-os/api.env
+ExecStartPre=/opt/agency-os/.venv/bin/alembic upgrade head
+ExecStart=/opt/agency-os/.venv/bin/uvicorn agency_os.service.api.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/var/lib/agency-os
+
+[Install]
+WantedBy=multi-user.target

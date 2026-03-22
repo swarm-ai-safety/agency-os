@@ -1,0 +1,27 @@
+# Default owner for everything
+* @raelisavitt
+
+# Core simulation engine
+/swarm/core/ @raelisavitt
+
+# Agent implementations
+/swarm/agents/ @raelisavitt
+
+# Metrics and analysis
+/swarm/metrics/ @raelisavitt
+/swarm/analysis/ @raelisavitt
+
+# Governance and boundaries
+/swarm/governance/ @raelisavitt
+/swarm/boundaries/ @raelisavitt
+
+# CI/CD and tooling
+/.github/ @raelisavitt
+/Makefile @raelisavitt
+/pyproject.toml @raelisavitt
+
+# Scenarios
+/scenarios/ @raelisavitt
+
+# Tests
+/tests/ @raelisavitt

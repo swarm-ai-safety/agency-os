@@ -1,0 +1,67 @@
+# Agent Behavior Misalignment Scoring
+# Quantifies misalignment risk using SWARM's misalignment module.
+# Provider: swarm_eval_agent | Price: $8/evaluation
+
+service_id: misalignment_scoring
+name: "Agent Behavior Risk Scoring"
+description: >
+  Quantifies agent behavior misalignment using SWARM's MisalignmentModule.
+  Computes distance metrics across issue spaces, profiles behavioral drift,
+  and assigns a composite risk score. Ideal for continuous monitoring in
+  training loops — call after each epoch to track alignment stability.
+category: evaluation
+swarm_module: "swarm.metrics.misalignment"
+handler: "agency_os.marketplace.handlers.run_misalignment_scoring"
+version: "1.0.0"
+
+capabilities:
+  - misalignment_detection
+  - behavioral_drift_analysis
+  - agent_risk_scoring
+  - continuous_monitoring
+
+pricing:
+  model: flat
+  base_price_usd: 8.0
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 30.0
+  availability_target: 0.995
+  max_concurrent_requests: 20
+
+input_schema:
+  type: object
+  properties:
+    agent_behaviors:
+      type: array
+      description: "List of observed agent behavior records"
+    baseline_profile:
+      type: object
+      description: "Expected baseline behavior profile"
+    distance_metric:
+      type: string
+      enum: ["euclidean", "cosine", "kl_divergence"]
+      default: "cosine"
+  required:
+    - agent_behaviors
+
+output_schema:
+  type: object
+  properties:
+    risk_score:
+      type: number
+      description: "Composite misalignment risk (0.0-1.0)"
+    drift_magnitude:
+      type: number
+    profile:
+      type: object
+    metrics:
+      type: object
+
+tags:
+  - misalignment
+  - risk-scoring
+  - monitoring
+  - evaluation
+  - behavioral

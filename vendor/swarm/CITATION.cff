@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it using the metadata below."
+title: "SWARM: System-Wide Assessment of Risk in Multi-agent systems"
+type: software
+authors:
+  - name: "Raeli Savitt"
+version: "1.7.0"
+date-released: "2026-02-05"
+license: "MIT"
+url: "https://swarm-ai.org"
+repository-code: "https://github.com/swarm-ai-safety/swarm"
+keywords:
+  - "multi-agent systems"
+  - "AI safety"
+  - "distributional safety"
+  - "emergence"
+  - "governance"
+  - "simulation"
+abstract: >
+  SWARM is a research framework for studying emergent risks in multi-agent AI systems.
+  It uses soft probabilistic labels, replay-based incoherence metrics, and configurable
+  governance interventions to reveal how catastrophic failures can emerge from the
+  interaction of many sub-AGI agents.
+preferred-citation:
+  type: software
+  authors:
+    - name: "Raeli Savitt"
+  title: "SWARM: System-Wide Assessment of Risk in Multi-agent systems"
+  year: 2026
+  url: "https://github.com/swarm-ai-safety/swarm"

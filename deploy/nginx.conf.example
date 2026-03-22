@@ -1,0 +1,40 @@
+server {
+    listen 80;
+    server_name zero-human-labs.com www.zero-human-labs.com;
+
+    # Redirect HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name zero-human-labs.com www.zero-human-labs.com;
+
+    # TLS certs (e.g. via certbot/Let's Encrypt)
+    ssl_certificate     /etc/letsencrypt/live/zero-human-labs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/zero-human-labs.com/privkey.pem;
+
+    # Static site (Next.js export output)
+    root /var/www/zero-human-labs/out;
+    index index.html;
+
+    # Reverse proxy API requests to FastAPI backend
+    location /api/v1/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket/streaming support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri.html $uri/ /index.html;
+    }
+}

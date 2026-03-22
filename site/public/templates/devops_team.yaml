@@ -1,0 +1,66 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: devops-team
+  display_name: "DevOps Team"
+  tier: professional
+
+extends: _base
+
+agents:
+  - ref: engineering/devops-automator
+    count: 2
+    economic:
+      initial_balance: 800
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [deploy_staging, deploy_production, infrastructure, monitoring, ci_cd]
+
+  - ref: engineering/backend-architect
+    economic:
+      initial_balance: 700
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [architecture_review, code_review, infrastructure]
+
+  - ref: testing/performance-benchmarker
+    economic:
+      initial_balance: 600
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [test_run, benchmark, monitoring]
+
+  - ref: support/infrastructure-maintainer
+    economic:
+      initial_balance: 500
+      bid_strategy: budget_conscious
+    permissions:
+      tools: [monitoring, alert, report]
+
+governance:
+  preset: conservative
+  overrides:
+    audit_frequency: 0.20
+    circuit_breaker:
+      enabled: true
+      threshold: 2
+    tax_rate: 0.05
+
+workflows:
+  - name: deployment_pipeline
+    pipeline: nexus_full
+    stages:
+      - plan: [backend-architect]
+      - build: [devops-automator]
+      - test: [performance-benchmarker]
+      - deploy: [devops-automator]
+      - monitor: [infrastructure-maintainer]
+    quality_gates:
+      test_to_deploy:
+        min_evidence_items: 2
+        min_approvals: 1
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 50.0

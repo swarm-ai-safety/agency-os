@@ -1,0 +1,31 @@
+# Aggressive governance profile
+# High autonomy, loose budgets, fast iteration, minimal oversight
+
+transaction_tax_rate: 0.02
+transaction_tax_split: 0.5
+reputation_decay_rate: 1.0  # No decay
+
+# Minimal auditing
+audit_enabled: false
+audit_probability: 0.05
+audit_penalty_multiplier: 1.0
+audit_threshold_p: 0.3
+
+# Circuit breaker: high tolerance
+circuit_breaker_enabled: true
+freeze_threshold_toxicity: 0.9
+freeze_threshold_violations: 5
+freeze_duration_epochs: 1
+
+# High bandwidth
+bandwidth_cap: 20
+
+# No staking
+staking_enabled: false
+min_stake_to_participate: 0.0
+
+# No collusion detection
+collusion_detection_enabled: false
+
+# No RBAC
+rbac_enabled: false

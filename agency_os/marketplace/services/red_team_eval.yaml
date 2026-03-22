@@ -1,0 +1,70 @@
+# Red Team Governance Evaluation
+# Uses SWARM's red-team framework to attack governance mechanisms.
+# Provider: swarm_redteam_agent | Price: $25/evaluation
+
+service_id: red_team_eval
+name: "Red Team Governance Evaluation"
+description: >
+  Systematically attacks governance mechanisms using SWARM's red-team
+  framework with 8+ attack vectors. Measures evasion rates, detection
+  latency, and damage-before-detection. Returns a vulnerability report
+  with governance robustness score.
+category: red_team
+swarm_module: "swarm.redteam"
+handler: "agency_os.marketplace.handlers.run_red_team_eval"
+version: "1.0.0"
+
+capabilities:
+  - red_team_evaluation
+  - governance_attack_simulation
+  - vulnerability_discovery
+  - evasion_rate_measurement
+  - detection_latency_testing
+
+pricing:
+  model: flat
+  base_price_usd: 25.0
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 300.0
+  availability_target: 0.99
+  max_concurrent_requests: 3
+
+input_schema:
+  type: object
+  properties:
+    governance_config:
+      type: object
+      description: "Governance configuration to attack"
+    attack_vectors:
+      type: array
+      items:
+        type: string
+      description: "Specific attack types (empty = all)"
+    intensity:
+      type: string
+      enum: ["light", "standard", "aggressive"]
+      default: "standard"
+  required: []
+
+output_schema:
+  type: object
+  properties:
+    robustness_score:
+      type: number
+    evasion_rate:
+      type: number
+    detection_latency_avg:
+      type: number
+    vulnerabilities:
+      type: array
+    report:
+      type: string
+
+tags:
+  - red-team
+  - security
+  - governance
+  - adversarial
+  - vulnerability

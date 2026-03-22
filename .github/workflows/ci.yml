@@ -1,0 +1,426 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'agents/**/memory/**'
+      - '.beads/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'data/**'
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  lint:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv pip install --system "ruff~=0.14.0"
+      - run: ruff check agency_os/ tests/
+      - run: ruff format --check agency_os/ tests/
+
+  typecheck:
+    name: Type Check
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv pip install --system --prerelease=allow -e ".[dev,api,llm,metering]"
+      - run: python -m mypy agency_os/
+
+  pricing-check:
+    name: Pricing Consistency
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Validate pricing consistency
+        run: node scripts/validate-pricing.js
+
+  dependency-audit:
+    name: Dependency Vulnerability Scan
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - name: Audit dependencies for known CVEs
+        run: |
+          uvx --from pip-audit pip-audit -r requirements.lock --progress-spinner off
+          uvx --from pip-audit pip-audit -r requirements-all.lock --progress-spinner off
+
+  schema-check:
+    name: Database Schema Drift
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: uv pip install --system --prerelease=allow -e ".[dev,api,llm,metering]"
+      - name: Check for schema drift
+        run: |
+          rm -f agency_os.db
+          alembic upgrade head
+          alembic check
+          echo "✓ No schema drift detected"
+
+  test:
+    runs-on: self-hosted
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv pip install --system --prerelease=allow -e ".[dev,api,llm,metering]" numpy pytest-testmon
+      - name: Restore testmon data
+        run: |
+          TESTMON_CACHE="${HOME}/.cache/testmon/${GITHUB_REPOSITORY}"
+          mkdir -p "$TESTMON_CACHE"
+          cp "$TESTMON_CACHE/.testmondata" .testmondata 2>/dev/null || true
+      - run: python -m pytest tests/ -v --tb=short -W error::ResourceWarning --testmon --junitxml=test-results/results.xml --cov=agency_os --cov-report=term-missing --cov-report=xml:coverage.xml
+      - name: Save testmon data
+        if: always()
+        run: |
+          TESTMON_CACHE="${HOME}/.cache/testmon/${GITHUB_REPOSITORY}"
+          mkdir -p "$TESTMON_CACHE"
+          cp .testmondata "$TESTMON_CACHE/.testmondata" 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results
+          path: |
+            test-results/
+            coverage.xml
+          retention-days: 7
+
+  backend-compat-sqlite:
+    name: Backend Compatibility (sqlite)
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv pip install --system --prerelease=allow -e ".[dev,api,llm,metering]" numpy
+      - name: Run backend compatibility tests
+        run: python -m pytest tests/unit/test_schema_validation.py -v --tb=short
+
+  backend-compat-postgres:
+    name: Backend Compatibility (postgres)
+    runs-on: self-hosted
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: agency_os
+          POSTGRES_PASSWORD: agency_os
+          POSTGRES_DB: agency_os
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U agency_os -d agency_os"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv pip install --system --prerelease=allow -e ".[dev,api,llm,metering]" numpy psycopg[binary]
+      - name: Configure backend env
+        run: |
+          echo "DATABASE_URL=postgresql+psycopg://agency_os:agency_os@127.0.0.1:15432/agency_os" >> "$GITHUB_ENV"
+          echo "DATABASE_PATH=${{ runner.temp }}/postgres-fallback.db" >> "$GITHUB_ENV"
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            docker exec $(docker ps -q --filter ancestor=postgres:16) pg_isready -U agency_os -d agency_os && exit 0
+            sleep 2
+          done
+          echo "::error::PostgreSQL service did not become ready"
+          exit 1
+      - name: Run backend compatibility tests
+        run: |
+          python -m pytest \
+            tests/unit/test_schema_validation.py \
+            tests/integration/test_sqlite_to_postgres_migration.py \
+            -v --tb=short
+
+  site-quality:
+    name: Site Quality
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: ./scripts/site-install.sh
+      - run: cd site && npm run test:coverage
+      - run: cd site && npm run build
+
+  docker:
+    name: Docker Build
+    runs-on: self-hosted
+    timeout-minutes: 30
+    needs:
+      - test
+      - lint
+      - typecheck
+      - pricing-check
+      - dependency-audit
+      - schema-check
+      - site-quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache/api
+          cache-to: type=local,dest=/tmp/.buildx-cache/api,mode=max
+
+      - name: Build Worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.worker
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache/worker
+          cache-to: type=local,dest=/tmp/.buildx-cache/worker,mode=max
+
+      - name: Build Dashboard image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.dashboard
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache/dashboard
+          cache-to: type=local,dest=/tmp/.buildx-cache/dashboard,mode=max
+
+      - name: Build Site image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.site
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache/site
+          cache-to: type=local,dest=/tmp/.buildx-cache/site,mode=max
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: self-hosted
+    timeout-minutes: 25
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Install Trivy
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build API image for scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          load: true
+          tags: agency-os-api:scan
+          cache-from: type=local,src=/tmp/.buildx-cache/api
+
+      - name: Scan API image with Trivy
+        run: trivy image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed agency-os-api:scan
+
+      - name: Build Worker image for scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.worker
+          load: true
+          tags: agency-os-worker:scan
+          cache-from: type=local,src=/tmp/.buildx-cache/worker
+
+      - name: Scan Worker image with Trivy
+        run: trivy image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed agency-os-worker:scan
+
+  deploy:
+    name: Deploy to Production
+    runs-on: self-hosted
+    timeout-minutes: 35
+    needs: [docker, container-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy via SSH
+        id: deploy_ssh
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/deploy/agency-os
+            previous_sha=$(git rev-parse HEAD)
+            echo "$previous_sha" > .last-deploy-sha
+            git fetch origin main
+            git reset --hard origin/main
+            deployed_sha=$(git rev-parse HEAD)
+            echo "$deployed_sha" > .current-deploy-sha
+            if [ -f /etc/agency-os/api.env ] && [ -r /etc/agency-os/api.env ]; then
+              set -a
+              . /etc/agency-os/api.env
+              set +a
+            fi
+            ./scripts/pre-deploy-backup.sh backups
+            cd /home/deploy/agency-os/deploy/compose
+            docker compose -f docker-compose.prod.yml build
+            docker compose -f docker-compose.prod.yml run --rm migrate
+            docker compose -f docker-compose.prod.yml up -d --build
+            sleep 5
+            for i in $(seq 1 12); do
+              docker compose -f docker-compose.prod.yml exec -T api curl -sf http://localhost:8000/health && break
+              echo "Waiting for API to start... attempt $i/12"
+              sleep 5
+            done
+
+      - name: Health check
+        id: public_health
+        continue-on-error: true
+        run: |
+          status=""
+          for i in $(seq 1 30); do
+            status=$(curl -sf https://api.${{ secrets.DEPLOY_DOMAIN }}/health | jq -r '.status' 2>/dev/null)
+            if [ "$status" = "ok" ] || [ "$status" = "degraded" ]; then
+              echo "API healthy (status: $status)"
+              break
+            fi
+            echo "Waiting for API... attempt $i/30"
+            sleep 10
+          done
+          if [ "$status" != "ok" ] && [ "$status" != "degraded" ]; then
+            echo "::error::API health check failed after 5 minutes"
+            exit 1
+          fi
+
+      - name: Automated rollback
+        if: steps.public_health.outcome == 'failure'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/deploy/agency-os
+            rollback_sha=$(cat .last-deploy-sha)
+            echo "Rolling back deployment to ${rollback_sha}"
+            git fetch origin main
+            git reset --hard "${rollback_sha}"
+            cd /home/deploy/agency-os/deploy/compose
+            docker compose -f docker-compose.prod.yml up -d --build
+
+      - name: Verify rollback health
+        if: steps.public_health.outcome == 'failure'
+        run: |
+          status=""
+          for i in $(seq 1 30); do
+            status=$(curl -sf https://api.${{ secrets.DEPLOY_DOMAIN }}/health | jq -r '.status' 2>/dev/null)
+            if [ "$status" = "ok" ] || [ "$status" = "degraded" ]; then
+              echo "Rollback recovered API health (status: $status)"
+              break
+            fi
+            echo "Waiting for rollback recovery... attempt $i/30"
+            sleep 10
+          done
+          if [ "$status" != "ok" ] && [ "$status" != "degraded" ]; then
+            echo "::error::Rollback did not recover API health"
+            exit 1
+          fi
+
+      - name: Verify endpoints
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: /home/deploy/agency-os/scripts/prod-verify-waitlist.sh
+
+      - name: Verify site
+        run: |
+          status_code=$(curl -sf -o /dev/null -w "%{http_code}" https://${{ secrets.DEPLOY_DOMAIN }}/ 2>/dev/null || echo "000")
+          if [ "$status_code" = "200" ] || [ "$status_code" = "308" ]; then
+            echo "Site responding (HTTP $status_code)"
+          else
+            echo "::warning::Site returned HTTP $status_code"
+          fi
+
+      - name: Deployment notification
+        if: always()
+        run: |
+          webhook='${{ secrets.DEPLOY_SLACK_WEBHOOK }}'
+          if [ -z "$webhook" ]; then
+            echo "DEPLOY_SLACK_WEBHOOK not configured, skipping notification"
+            exit 0
+          fi
+
+          status='${{ job.status }}'
+          rollback='no'
+          if [ '${{ steps.public_health.outcome }}' = 'failure' ]; then
+            rollback='yes'
+          fi
+
+          text="agency-os deploy ${status} (rollback_triggered=${rollback}) on ${GITHUB_REF_NAME} @ ${GITHUB_SHA}"
+          payload=$(jq -n --arg text "$text" '{text: $text}')
+          curl -fsS -X POST -H "Content-type: application/json" --data "$payload" "$webhook"

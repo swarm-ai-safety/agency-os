@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff
+        args: [--fix]
+        exclude: ^vendor/
+      - id: ruff-format
+        exclude: ^vendor/
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.9.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (requirements.lock)
+        args: [-r, requirements.lock, --progress-spinner, "off"]
+        files: ^requirements\.lock$
+      - id: pip-audit
+        name: pip-audit (requirements-all.lock)
+        args: [-r, requirements-all.lock, --progress-spinner, "off"]
+        files: ^requirements-all\.lock$

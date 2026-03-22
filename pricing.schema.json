@@ -1,0 +1,130 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agency-OS Pricing Schema",
+  "description": "Canonical pricing source of truth for docs and site components. This schema is validated in CI via scripts/validate-pricing.js. When updating pricing, edit this file first, then update docs/pricing.md and site/app/components/Pricing.tsx to match.",
+  "plans": [
+    {
+      "id": "free",
+      "name": "Free",
+      "displayName": "Free Demo",
+      "price": 0,
+      "priceDisplay": "$0",
+      "period": "one-time",
+      "description": "Free Demo — $0 one-time onboarding: we set up the basics and run one example workflow on open-source models. Upgrade required for continued usage.",
+      "features": [
+        "1 agent",
+        "Guided setup included",
+        "1 example workflow run",
+        "Open-source model pool for demo run",
+        "Smart routing (model=\"auto\")",
+        "Balanced governance preset",
+        "Real-time metering",
+        "Community support"
+      ],
+      "limits": [
+        "No recurring monthly token bucket",
+        "Upgrade required after demo run",
+        "No failover or eval harness",
+        "Single governance preset"
+      ],
+      "cta": "Start Free Demo",
+      "highlight": false
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "displayName": "Pro",
+      "price": 49,
+      "priceDisplay": "$49",
+      "period": "/mo + usage",
+      "description": "For teams running production agent workflows.",
+      "features": [
+        "Unlimited agents",
+        "1M tokens/month included",
+        "All governance presets (conservative, balanced, aggressive)",
+        "Cross-provider failover",
+        "Eval harness (5 dimensions: toxicity, relevance, quality, hallucination, factuality)",
+        "Trust score monitoring",
+        "Per-agent budget caps",
+        "Priority support",
+        "10% volume discount on overages"
+      ],
+      "limits": [],
+      "cta": "Upgrade to Pro",
+      "highlight": true
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "displayName": "Enterprise",
+      "price": null,
+      "priceDisplay": "Custom",
+      "period": "",
+      "description": "Dedicated infrastructure and compliance controls.",
+      "features": [
+        "Everything in Pro",
+        "Custom governance profiles",
+        "Dedicated tenant isolation",
+        "SLA guarantees",
+        "SSO / SAML",
+        "Audit log export",
+        "Volume pricing (negotiated)",
+        "Dedicated support channel"
+      ],
+      "limits": [],
+      "cta": "Contact Sales",
+      "highlight": false
+    }
+  ],
+  "models": {
+    "_note": "Customer prices = provider cost × 1.30 (30% margin). Per-model billing via Stripe cost meter.",
+    "openai": [
+      { "name": "GPT-4.1 Nano", "inputPer1M": 0.13, "outputPer1M": 0.52 },
+      { "name": "GPT-4o Mini", "inputPer1M": 0.26, "outputPer1M": 1.01 },
+      { "name": "GPT-4.1 Mini", "inputPer1M": 0.52, "outputPer1M": 2.08 },
+      { "name": "GPT-4.1", "inputPer1M": 2.60, "outputPer1M": 10.40 },
+      { "name": "GPT-4o", "inputPer1M": 3.25, "outputPer1M": 13.00 }
+    ],
+    "anthropic": [
+      { "name": "Claude Haiku 3.5", "inputPer1M": 1.04, "outputPer1M": 5.20 },
+      { "name": "Claude Haiku 4.5", "inputPer1M": 1.30, "outputPer1M": 6.50 },
+      { "name": "Claude Sonnet 4", "inputPer1M": 3.90, "outputPer1M": 19.50 },
+      { "name": "Claude Sonnet 4.5", "inputPer1M": 3.90, "outputPer1M": 19.50 },
+      { "name": "Claude Sonnet 4.6", "inputPer1M": 3.90, "outputPer1M": 19.50 },
+      { "name": "Claude Opus 4.5", "inputPer1M": 6.50, "outputPer1M": 32.50 },
+      { "name": "Claude Opus 4.6", "inputPer1M": 6.50, "outputPer1M": 32.50 },
+      { "name": "Claude Opus 4", "inputPer1M": 19.50, "outputPer1M": 97.50 }
+    ]
+  },
+  "executionPricing": [
+    { "action": "Agent task (single model call + governance)", "price": 0.01 },
+    { "action": "Agent workflow (multi-step pipeline)", "price": 0.05 },
+    { "action": "Sandbox simulation (governance wind-tunnel test)", "price": 0.10 }
+  ],
+  "volumeDiscounts": [
+    { "minTokens": 0, "maxTokens": 1000000, "discount": 0 },
+    { "minTokens": 1000000, "maxTokens": 10000000, "discount": 0.10 },
+    { "minTokens": 10000000, "maxTokens": 100000000, "discount": 0.20 },
+    { "minTokens": 100000000, "maxTokens": null, "discount": null, "note": "Custom (contact sales)" }
+  ],
+  "commonFeatures": {
+    "all": [
+      "Smart routing (requests routed to the right model and provider automatically)",
+      "Response caching (identical prompts served from cache at zero token cost)",
+      "Real-time metering (per-agent, per-tenant token and cost tracking)",
+      "Governance presets (configurable audit probability, circuit breakers, and transaction tax rates)",
+      "Trust scoring (rolling agent reliability scores that auto-adjust governance strictness)",
+      "Task-type classification (automatic governance selection based on task complexity)"
+    ],
+    "proAndAbove": [
+      "Cross-provider failover (if one provider is down, requests fail over seamlessly)",
+      "Eval harness (5-dimension evaluation: toxicity, relevance, quality, hallucination, factuality)"
+    ]
+  },
+  "metadata": {
+    "platformMargin": 0.30,
+    "currency": "USD",
+    "billingCycle": "monthly",
+    "lastUpdated": "2026-03-08"
+  }
+}

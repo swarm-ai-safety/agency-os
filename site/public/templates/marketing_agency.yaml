@@ -1,0 +1,76 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: marketing-agency
+  display_name: "Marketing Agency"
+  tier: professional
+
+extends: _base
+
+agents:
+  - ref: marketing/content-creator
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [content_write, content_edit, seo_analyze]
+
+  - ref: marketing/social-media-strategist
+    economic:
+      initial_balance: 700
+      bid_strategy: default
+    permissions:
+      tools: [social_post, analytics_read, content_write]
+
+  - ref: marketing/growth-hacker
+    economic:
+      initial_balance: 600
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [analytics_read, experiment_run, content_write]
+
+  - ref: marketing/app-store-optimizer
+    economic:
+      initial_balance: 500
+      bid_strategy: budget_conscious
+    permissions:
+      tools: [aso_analyze, content_write]
+
+  - ref: design/brand-guardian
+    economic:
+      initial_balance: 600
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [design_review, brand_check]
+
+  - ref: project-management/studio-producer
+    economic:
+      initial_balance: 700
+      bid_strategy: default
+    permissions:
+      tools: [task_create, task_assign, schedule, report]
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.10
+    tax_rate: 0.03
+
+workflows:
+  - name: campaign_launch
+    pipeline: nexus_full
+    stages:
+      - plan: [studio-producer]
+      - create: [content-creator]
+      - review: [brand-guardian]
+      - distribute: [social-media-strategist, growth-hacker]
+    quality_gates:
+      create_to_review:
+        min_evidence_items: 2
+      review_to_distribute:
+        min_approvals: 1
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 75.0

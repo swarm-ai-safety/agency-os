@@ -1,0 +1,3 @@
+# Streamlit Community Cloud reads this file for dependency installation.
+# Install the swarm package from this repo (includes numpy, pydantic, pandas).
+.[dashboard,runtime,analysis]

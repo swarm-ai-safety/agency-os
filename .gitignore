@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.env
+.env*.local
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+runs/
+agency_os.db
+.next/
+site/coverage/
+backups/
+.DS_Store
+*.db.backup*
+
+# Private modules (extracted to agency-os-private repo)
+agency_os/billing_private/
+agency_os/wallet_private/
+tests/unit/test_stripe_billing.py
+scripts/setup_stripe_meters.py
+
+# Agent operational data (private)
+agents/*/memory/
+agents/*/life/
+
+# Deploy skills with infrastructure details (private)
+.claude/skills/deploy-site/

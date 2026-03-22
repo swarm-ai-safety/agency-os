@@ -1,0 +1,85 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: biotech-research
+  display_name: "Biotech Research Team"
+  tier: professional
+  icon: flask-conical
+  tagline: "Systematic literature review and research synthesis"
+  use_cases:
+    - Literature reviews and meta-analyses
+    - Drug discovery research summarization
+    - Regulatory compliance evidence gathering
+  category: research
+
+extends: _base
+
+agents:
+  - ref: research/literature-reviewer
+    count: 2
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [literature_search, paper_analyze, citation_extract, report]
+
+  - ref: research/synthesis-analyst
+    economic:
+      initial_balance: 900
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [evidence_synthesis, statistical_review, report]
+
+  - ref: research/critical-reviewer
+    economic:
+      initial_balance: 700
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [methodology_critique, gap_analysis, report]
+
+  - ref: research/domain-expert
+    role_override:
+      title: "Biotech Domain Specialist"
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [domain_validate, regulatory_check, report]
+
+  - ref: project-management/research-coordinator
+    economic:
+      initial_balance: 600
+      bid_strategy: default
+    permissions:
+      tools: [task_create, task_assign, schedule, report]
+
+governance:
+  preset: conservative
+  overrides:
+    audit_frequency: 0.25
+    circuit_breaker:
+      enabled: true
+      threshold: 2
+    tax_rate: 0.06
+
+workflows:
+  - name: literature_analysis
+    pipeline: nexus_full
+    stages:
+      - search: [literature-reviewer]
+      - analyze: [literature-reviewer, synthesis-analyst]
+      - synthesize: [synthesis-analyst]
+      - critique: [critical-reviewer, domain-expert]
+      - report: [research-coordinator]
+    quality_gates:
+      analyze_to_synthesize:
+        min_evidence_items: 5
+      synthesize_to_critique:
+        min_approvals: 1
+      critique_to_report:
+        min_approvals: 2
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 60.0

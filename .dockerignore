@@ -1,0 +1,63 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+test-results/
+
+# Environment and secrets
+.env
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artifacts
+agency_os.db
+runs/
+.beads/
+.claude/
+
+# Agent memory (contains runtime state, not needed in containers)
+agents/*/memory/
+
+# Documentation and non-runtime files
+*.md
+LICENSE
+docs/
+
+# CI/CD
+.github/
+
+# Node / site source (built separately in Dockerfile.site)
+site/node_modules/
+site/.next/
+
+# Deploy configs (not needed inside containers)
+deploy/
+tests/
+
+# Runtime DB migrations are required by API/worker containers.
+!alembic/
+!alembic/**
+!alembic.ini

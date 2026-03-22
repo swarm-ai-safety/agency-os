@@ -1,0 +1,13 @@
+.beads/
+.git/
+external/
+runs/
+logs/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.venv/
+promo/node_modules/
+promo/out/
+lean/.lake/

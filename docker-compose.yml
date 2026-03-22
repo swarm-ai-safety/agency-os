@@ -1,0 +1,48 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./agency_os:/app/agency_os
+      - db-data:/app
+      - backup-data:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.worker
+    env_file: .env
+    volumes:
+      - ./agency_os:/app/agency_os
+      - db-data:/app
+    depends_on:
+      api:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:
+    driver: local
+  backup-data:
+    driver: local

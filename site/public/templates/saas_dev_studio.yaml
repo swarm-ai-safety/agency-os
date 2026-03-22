@@ -1,0 +1,85 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: saas-dev-studio
+  display_name: "SaaS Development Studio"
+  tier: professional
+
+extends: _base
+
+agents:
+  - ref: engineering/senior-developer
+    count: 1
+    role_override:
+      title: "Tech Lead"
+    economic:
+      initial_balance: 1000
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [code_write, code_review, git_commit, deploy_staging]
+      deny: [deploy_production]
+
+  - ref: engineering/backend-architect
+    economic:
+      initial_balance: 800
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [code_write, code_review, architecture_review]
+
+  - ref: engineering/frontend-developer
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [code_write, code_review, ui_design]
+
+  - ref: engineering/devops-automator
+    economic:
+      initial_balance: 600
+      bid_strategy: budget_conscious
+    permissions:
+      tools: [deploy_staging, deploy_production, infrastructure, monitoring]
+
+  - ref: testing/evidence-collector
+    economic:
+      initial_balance: 500
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [test_run, screenshot, code_review]
+
+  - ref: project-management/project-manager-senior
+    economic:
+      initial_balance: 700
+      bid_strategy: default
+    permissions:
+      tools: [task_create, task_assign, schedule, report]
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.15
+    circuit_breaker:
+      enabled: true
+      threshold: 3
+    tax_rate: 0.05
+
+workflows:
+  - name: feature_development
+    pipeline: nexus_full
+    stages:
+      - plan: [project-manager-senior]
+      - design: [backend-architect]
+      - implement: [senior-developer, frontend-developer]
+      - test: [evidence-collector]
+      - deploy: [devops-automator]
+    quality_gates:
+      implement_to_test:
+        min_approvals: 1
+      test_to_deploy:
+        min_evidence_items: 3
+        min_approvals: 2
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 100.0
