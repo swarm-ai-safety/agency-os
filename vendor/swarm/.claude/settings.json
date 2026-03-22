@@ -1,0 +1,61 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(bash .claude/hooks/scan_secrets.sh:*)",
+      "Bash(ls:*)"
+    ]
+  },
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/anchored-prime.sh",
+            "timeout": 10,
+            "statusMessage": "Building anchored context summary"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post_write_check.sh",
+            "timeout": 15,
+            "statusMessage": "Running post-write checks"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post_write_check.sh",
+            "timeout": 15,
+            "statusMessage": "Running post-write checks"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/raelisavitt/distributional-agi-safety/.claude/metadata-updater.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}

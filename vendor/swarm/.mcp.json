@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@2025.4.8"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "sqlite_runs": {
+      "command": "uvx",
+      "args": ["mcp-server-sqlite", "--db-path", "runs/runs.db"]
+    },
+    "dolt_runs": {
+      "command": "/Users/raelisavitt/go/bin/dolt-mcp-server",
+      "args": [
+        "--stdio",
+        "--dolt-host", "127.0.0.1",
+        "--dolt-port", "3307",
+        "--dolt-user", "root"
+      ]
+    },
+    "goalie": {
+      "command": "goalie",
+      "args": ["start"],
+      "env": {
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+      }
+    }
+  }
+}

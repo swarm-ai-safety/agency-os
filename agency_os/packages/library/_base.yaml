@@ -1,0 +1,20 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: _base
+  display_name: "Base Package Defaults"
+  tier: professional
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.1
+    circuit_breaker:
+      enabled: true
+      threshold: 3
+    tax_rate: 0.05
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 100.0

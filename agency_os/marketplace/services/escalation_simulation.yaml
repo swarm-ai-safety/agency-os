@@ -1,0 +1,79 @@
+# Multi-Agent Escalation Simulation
+# Runs N-agent escalation scenarios to measure risk of unsafe behavior cascades.
+# Provider: swarm_safety_agent | Price: $15/run | Latency: ~90 seconds
+# Output: risk profile + escalation probability
+
+service_id: escalation_simulation
+name: "Multi-Agent Escalation Simulation"
+description: >
+  Runs multi-agent escalation scenarios using SWARM's orchestrator and
+  adversarial agent policies. Measures cascade risk, escalation probability,
+  and identifies tipping points where cooperative behavior breaks down.
+  Used by autonomous startups for risk testing and AI hedge funds for
+  model robustness evaluation.
+category: simulation
+swarm_module: "swarm.core.orchestrator"
+handler: "agency_os.marketplace.handlers.run_escalation_simulation"
+version: "1.0.0"
+
+capabilities:
+  - escalation_simulation
+  - cascade_risk_analysis
+  - multi_agent_stress_test
+  - tipping_point_detection
+
+pricing:
+  model: per_iteration
+  base_price_usd: 15.0
+  per_unit_usd: 2.0
+  unit_name: "iteration"
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 120.0
+  availability_target: 0.99
+  max_concurrent_requests: 5
+
+input_schema:
+  type: object
+  properties:
+    num_agents:
+      type: integer
+      description: "Number of agents in the simulation"
+      default: 10
+    num_steps:
+      type: integer
+      description: "Steps per epoch"
+      default: 50
+    adversarial_fraction:
+      type: number
+      description: "Fraction of adversarial agents (0.0-1.0)"
+      default: 0.2
+    scenario:
+      type: string
+      description: "Scenario template name"
+      default: "escalation_baseline"
+  required: []
+
+output_schema:
+  type: object
+  properties:
+    risk_score:
+      type: number
+      description: "Overall escalation risk (0.0-1.0)"
+    escalation_probability:
+      type: number
+      description: "Probability of cascade failure"
+    tipping_point_step:
+      type: integer
+      description: "Step at which escalation begins"
+    metrics:
+      type: object
+      description: "Detailed SWARM metrics"
+
+tags:
+  - safety
+  - escalation
+  - multi-agent
+  - risk-testing
+  - stress-test

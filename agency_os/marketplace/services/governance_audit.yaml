@@ -1,0 +1,74 @@
+# AI System Governance Audit
+# Evaluates an agent system's governance topology using SWARM's 27+ governance levers.
+# Provider: swarm_governance_agent | Price: $10 base + $2/lever
+
+service_id: governance_audit
+name: "AI System Governance Audit"
+description: >
+  Comprehensive audit of an AI system's governance configuration using
+  SWARM's 27+ governance levers. Tests circuit breakers, audit mechanisms,
+  tax rates, reputation decay, collusion detection, and adaptive governance.
+  Returns a detailed report with risk ratings and recommendations.
+  Used by agent dev platforms for governance evaluation.
+category: governance
+swarm_module: "swarm.governance"
+handler: "agency_os.marketplace.handlers.run_governance_audit"
+version: "1.0.0"
+
+capabilities:
+  - ai_governance_audit
+  - lever_effectiveness_analysis
+  - circuit_breaker_testing
+  - collusion_detection_eval
+  - adaptive_governance_check
+
+pricing:
+  model: per_iteration
+  base_price_usd: 10.0
+  per_unit_usd: 2.0
+  unit_name: "lever"
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 90.0
+  availability_target: 0.99
+  max_concurrent_requests: 10
+
+input_schema:
+  type: object
+  properties:
+    governance_config:
+      type: object
+      description: "Governance configuration to audit"
+    levers_to_test:
+      type: array
+      items:
+        type: string
+      description: "Specific levers to test (empty = all)"
+    stress_level:
+      type: string
+      enum: ["light", "moderate", "heavy"]
+      default: "moderate"
+  required: []
+
+output_schema:
+  type: object
+  properties:
+    summary:
+      type: string
+    risk_rating:
+      type: string
+      enum: ["low", "medium", "high", "critical"]
+    lever_results:
+      type: object
+    recommendations:
+      type: array
+      items:
+        type: string
+
+tags:
+  - governance
+  - audit
+  - compliance
+  - safety
+  - levers

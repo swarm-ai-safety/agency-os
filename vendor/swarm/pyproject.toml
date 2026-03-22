@@ -1,0 +1,221 @@
+[build-system]
+requires = ["setuptools>=61.0,<83", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarm-safety"
+version = "1.7.0"
+description = "SWARM: System-Wide Assessment of Risk in Multi-agent systems - A Distributional AGI Safety framework"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Raeli Savitt"}
+]
+keywords = ["multi-agent", "ai-safety", "distributional-safety", "swarm", "emergence"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.0",
+    "pytest-testmon>=2.0",
+    "pytest-xdist>=3.0",
+    "pytest-socket>=0.7",
+    "mypy",
+    "types-PyYAML",
+    "ruff",
+    "memory_profiler>=0.61.0",
+    "psutil>=5.9.0",
+]
+analysis = [
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "scipy>=1.10",
+]
+runtime = [
+    "pyyaml>=6.0",
+    "requests>=2.31",
+    "tenacity>=8.2",
+]
+llm = [
+    "anthropic>=0.40.0",
+    "openai>=1.50.0",
+    "httpx>=0.27.0",
+    "google-genai>=1.0.0",
+]
+llama_cpp = [
+    "llama-cpp-python>=0.3.0",
+    "openai>=1.50.0",
+]
+dashboard = [
+    "streamlit>=1.30",
+    "plotly>=5.0",
+]
+bridges = [
+    "swarm-gastown",
+]
+cli = [
+    "rich>=13.0",
+]
+concordia = [
+    "concordia>=1.0",
+]
+crewai = [
+    "crewai>=0.80.0,<2.0",
+]
+awm = [
+    "httpx>=0.27.0",
+]
+letta = [
+    "letta-client>=0.16.0",
+]
+memori = [
+    "memori>=3.0.0",
+]
+hodoscope = [
+    "hodoscope",
+]
+rag = [
+    "chromadb>=0.5.0",
+    "langchain-text-splitters>=0.2.0",
+    "langchain-openai>=0.1.0",
+    "langchain-ollama>=0.1.0",
+]
+rag-leann = [
+    "leann>=0.1.0",
+    "langchain-text-splitters>=0.2.0",
+]
+gamescape = [
+    "gamescape",
+]
+langgraph = [
+    "langgraph==1.0.9",
+    "langchain-core==1.2.16",
+    "langchain-anthropic==1.3.4",
+    "langchain-ollama>=0.3.0",
+    "langchain-openai>=0.3.0",
+]
+evolve = [
+    "darwinian-evolver @ git+https://github.com/imbue-ai/darwinian_evolver.git",
+]
+prime_intellect = [
+    "prime>=0.1.0",
+    "verifiers>=0.1.0",
+]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+    "pymdown-extensions>=10.0",
+]
+api = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
+    "httpx>=0.27.0",
+]
+all = [
+    "swarm-safety[dev,analysis,runtime,llm,dashboard,docs,api,cli]",
+]
+
+[project.urls]
+Homepage = "https://swarm-ai.org"
+Documentation = "https://docs.swarm-ai.org"
+Repository = "https://github.com/swarm-ai-safety/swarm"
+Issues = "https://github.com/swarm-ai-safety/swarm/issues"
+
+[project.scripts]
+swarm = "swarm.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swarm*"]
+
+[tool.setuptools.package-data]
+swarm = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+norecursedirs = [
+    ".hypothesis",
+    ".pytest_cache",
+    "__pycache__",
+    ".git",
+    ".testmon_cache",
+    ".venv",
+    "external",
+    "htmlcov",
+    "runs",
+    "site",
+]
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "asyncio: mark a test as an async test (used by pytest-asyncio)",
+    "slow: mark test as slow running (deselect with '-m \"not slow\"')",
+    "memory: mark test as memory-focused (runs with memory limits)",
+    "memory_intensive: mark test as long-running memory test (>1000 epochs)",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "swarm.core.orchestrator"
+warn_return_any = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.coverage.run]
+source = ["swarm"]
+branch = true
+omit = [
+    "swarm/analysis/streamlit_app.py",
+    "swarm/bridges/worktree/__main__.py",
+    "swarm/api/flask_app.py",
+]
+
+[tool.coverage.report]
+fail_under = 70
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.",
+]

@@ -1,0 +1,35 @@
+# Conservative governance profile
+# High audit frequency, tight budgets, low autonomy, strong safety
+
+transaction_tax_rate: 0.10
+transaction_tax_split: 0.5
+reputation_decay_rate: 0.95
+
+# Strict auditing
+audit_enabled: true
+audit_probability: 0.25
+audit_penalty_multiplier: 3.0
+audit_threshold_p: 0.6
+
+# Circuit breaker: trips quickly
+circuit_breaker_enabled: true
+freeze_threshold_toxicity: 0.5
+freeze_threshold_violations: 2
+freeze_duration_epochs: 3
+
+# Bandwidth limits
+bandwidth_cap: 5
+
+# Staking required
+staking_enabled: true
+min_stake_to_participate: 50.0
+stake_slash_rate: 0.2
+
+# Collusion detection on
+collusion_detection_enabled: true
+collusion_score_threshold: 0.4
+
+# RBAC enforced
+rbac_enabled: true
+rbac_violation_penalty: 1.0
+rbac_violation_reputation_penalty: -0.3

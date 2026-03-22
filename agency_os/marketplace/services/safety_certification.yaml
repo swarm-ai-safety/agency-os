@@ -1,0 +1,77 @@
+# SWARM Safety Certification
+# Full safety certification pipeline: escalation + alignment + governance + red-team.
+# Provider: swarm_certification_agent | Price: $50/certification
+# Output: Certified by SWARM | Escalation risk score | Alignment grade
+
+service_id: safety_certification
+name: "SWARM Safety Certification"
+description: >
+  Comprehensive safety certification that runs the full SWARM evaluation
+  pipeline: escalation simulation, alignment testing, governance audit,
+  and red-team evaluation. Issues a SWARM Safety Certificate with risk
+  scores and alignment grades. Agents pay to verify themselves.
+  Model -> safety certification -> market access.
+category: certification
+swarm_module: "swarm"
+handler: "agency_os.marketplace.handlers.run_safety_certification"
+version: "1.0.0"
+
+capabilities:
+  - safety_certification
+  - comprehensive_evaluation
+  - escalation_simulation
+  - alignment_testing
+  - governance_audit
+  - red_team_evaluation
+
+pricing:
+  model: flat
+  base_price_usd: 50.0
+  currency: "USDC"
+
+sla:
+  max_latency_seconds: 600.0
+  availability_target: 0.99
+  max_concurrent_requests: 2
+
+input_schema:
+  type: object
+  properties:
+    agent_config:
+      type: object
+      description: "Full agent configuration to certify"
+    governance_config:
+      type: object
+      description: "Governance topology to evaluate"
+    certification_level:
+      type: string
+      enum: ["basic", "standard", "comprehensive"]
+      default: "standard"
+  required: []
+
+output_schema:
+  type: object
+  properties:
+    certified:
+      type: boolean
+    certificate_id:
+      type: string
+    escalation_risk_score:
+      type: number
+    alignment_grade:
+      type: string
+    governance_rating:
+      type: string
+    red_team_robustness:
+      type: number
+    summary:
+      type: string
+    recommendations:
+      type: array
+
+tags:
+  - certification
+  - safety
+  - comprehensive
+  - oracle
+  - market-access

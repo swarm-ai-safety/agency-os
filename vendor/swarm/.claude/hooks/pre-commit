@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# Source of truth: .claude/hooks/pre-commit
+# Install with: cp .claude/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+set -euo pipefail
+
+if [[ "${SKIP_SWARM_HOOKS:-0}" == "1" ]]; then
+  echo "[swarm pre-commit] SKIP_SWARM_HOOKS=1 set; skipping."
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$ROOT" ]; then
+  echo "[swarm pre-commit] Could not determine repo root."
+  exit 1
+fi
+cd "$ROOT"
+
+# ── Branch guard (parallel session race detection) ──
+# If SESSION_BRANCH is set (by detect-session.sh), verify we're still on it.
+# Another tmux session sharing the same worktree can silently switch branches.
+if [ -n "${SESSION_BRANCH:-}" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || true)
+  if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "$SESSION_BRANCH" ]; then
+    echo "=========================================="
+    echo "COMMIT BLOCKED: Branch drift detected"
+    echo "=========================================="
+    echo ""
+    echo "  Expected: $SESSION_BRANCH"
+    echo "  Actual:   $CURRENT_BRANCH"
+    echo ""
+    echo "Another session likely switched branches in this worktree."
+    echo "Fix: use ./scripts/claude-tmux.sh to launch isolated worktrees."
+    echo ""
+    exit 1
+  fi
+fi
+
+# ── 0. Gitignore enforcement (auto-unstage junk before anything else) ──
+JUNK=$(git diff --cached --name-only | grep -E '(\.DS_Store|\.db$|\.env$|credentials)' || true)
+if [ -n "$JUNK" ]; then
+    echo "[swarm pre-commit] unstaging junk files:"
+    echo "$JUNK" | while read -r f; do echo "  - $f"; done
+    echo "$JUNK" | xargs git reset HEAD --quiet
+fi
+
+# ── 1. Secrets scan (must run first, blocks on any match) ──
+echo "[swarm pre-commit] secrets scan"
+
+PATTERNS=(
+    'ax_[0-9a-f]{32}'           # agentxiv API keys
+    'clx_[0-9a-f]{32}'          # clawxiv API keys
+    'sk-[A-Za-z0-9]{48}'        # OpenAI API keys
+    'sk_live_[A-Za-z0-9]+'      # Stripe live keys
+    'AKIA[0-9A-Z]{16}'          # AWS access keys
+    'ghp_[A-Za-z0-9]{36}'       # GitHub personal tokens
+    'gho_[A-Za-z0-9]{36}'       # GitHub OAuth tokens
+    'moltbook_sk_[A-Za-z0-9_]+' # Moltbook API keys
+    'moltipedia_[0-9a-f]{64}'   # Moltipedia API keys
+    'wm_[0-9a-f]{32}'           # Wikimolt API keys
+    'clawchan_[0-9a-f]{48}'     # 4claw API keys
+    'clawk_[0-9a-f]{32}'        # Clawk API keys
+    'API_KEY\s*=\s*["\x27][^"\x27]{20,}["\x27]'  # Generic API_KEY assignments
+    'Bearer\s+[A-Za-z0-9_-]{20,}'  # Bearer tokens in strings
+)
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(py|js|ts|yaml|yml|json|sh|env|md)$' || true)
+
+if [ -n "$STAGED_FILES" ]; then
+    FOUND=0
+    DIFF=$(git diff --cached -U0)
+    for pattern in "${PATTERNS[@]}"; do
+        MATCHES=$(echo "$DIFF" | grep -E "^\+" | grep -E "$pattern" || true)
+        if [ -n "$MATCHES" ]; then
+            echo "ERROR: Potential secret detected matching pattern: $pattern"
+            echo "$MATCHES" | head -5
+            echo ""
+            FOUND=1
+        fi
+    done
+
+    if [ $FOUND -eq 1 ]; then
+        echo "=========================================="
+        echo "COMMIT BLOCKED: Potential secrets detected"
+        echo "=========================================="
+        echo ""
+        echo "Use environment variables or credential files instead."
+        echo "  api_key = os.environ.get('YOUR_API_KEY')"
+        echo "  or load from ~/.config/<platform>/credentials.json"
+        echo ""
+        exit 1
+    fi
+    echo "[swarm pre-commit] secrets scan: clean"
+fi
+
+# ── 1b. Private infra ID / dashboard link scan ──
+echo "[swarm pre-commit] private infra scan"
+
+INFRA_PATTERNS=(
+    'app\.primeintellect\.ai/dashboard'   # Prime Intellect dashboard links
+    'primeintellect\.ai/runs/'            # Prime Intellect run links
+    '[a-z0-9]{24}'                        # Prime Intellect run IDs (24-char alphanumeric)
+)
+
+# Only check added lines in staged content for blog/docs/public-facing files
+STAGED_PUBLIC=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(md|html|rst|txt)$' || true)
+if [ -n "$STAGED_PUBLIC" ]; then
+    INFRA_FOUND=0
+    INFRA_DIFF=$(git diff --cached -U0 -- $STAGED_PUBLIC)
+
+    # Check for dashboard URLs (high confidence — always block)
+    for pattern in 'app\.primeintellect\.ai/' 'primeintellect\.ai/dashboard' 'primeintellect\.ai/runs/'; do
+        INFRA_MATCHES=$(echo "$INFRA_DIFF" | grep -E "^\+" | grep -E "$pattern" || true)
+        if [ -n "$INFRA_MATCHES" ]; then
+            echo "ERROR: Private dashboard link detected:"
+            echo "$INFRA_MATCHES" | head -5
+            echo ""
+            INFRA_FOUND=1
+        fi
+    done
+
+    # Check for bare run IDs (24-char lowercase alphanumeric, only in added lines)
+    # Filter out common false positives (commit SHAs are 40 chars, these are 24)
+    RUN_ID_MATCHES=$(echo "$INFRA_DIFF" | grep -E "^\+" | grep -Eio '\b[a-z0-9]{24}\b' | \
+        grep -v '^[0-9a-f]\{40\}$' || true)
+    if [ -n "$RUN_ID_MATCHES" ]; then
+        # Only flag if the line also mentions "run" or "prime" or "training" (context-aware)
+        CONTEXTUAL=$(echo "$INFRA_DIFF" | grep -E "^\+" | grep -Ei '(run.id|prime|training|dashboard)' | \
+            grep -Eio '\b[a-z0-9]{24}\b' || true)
+        if [ -n "$CONTEXTUAL" ]; then
+            echo "WARNING: Possible Prime Intellect run ID detected in public-facing file:"
+            echo "$CONTEXTUAL" | head -5
+            echo ""
+            INFRA_FOUND=1
+        fi
+    fi
+
+    if [ $INFRA_FOUND -eq 1 ]; then
+        echo "=========================================="
+        echo "COMMIT BLOCKED: Private infrastructure IDs"
+        echo "=========================================="
+        echo ""
+        echo "Do not expose run IDs or dashboard links in public docs/blog."
+        echo "Remove the ID or replace with a generic description."
+        echo ""
+        exit 1
+    fi
+    echo "[swarm pre-commit] private infra scan: clean"
+fi
+
+# ── 1c. Financial disclaimer check (blog/post files mentioning markets) ──
+STAGED_BLOG=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/(blog|posts)/.*\.md$' || true)
+if [ -n "$STAGED_BLOG" ]; then
+    DISCLAIMER_MISSING=""
+    for f in $STAGED_BLOG; do
+        # Check if the file mentions financial/market terms
+        HAS_FINANCE=$(grep -Eic '(financial market|market microstructure|trading|invest(ment|or|ing)|stock market|portfolio|kyle.s lambda|glosten.milgrom|adverse selection|bid.ask spread|FINRA|market maker)' "$f" || true)
+        if [ "$HAS_FINANCE" -gt 0 ]; then
+            # Check if it has a disclaimer
+            HAS_DISCLAIMER=$(grep -c 'not financial advice\|Nothing here constitutes financial advice\|does not constitute financial advice' "$f" || true)
+            if [ "$HAS_DISCLAIMER" -eq 0 ]; then
+                DISCLAIMER_MISSING="$DISCLAIMER_MISSING  - $f\n"
+            fi
+        fi
+    done
+
+    if [ -n "$DISCLAIMER_MISSING" ]; then
+        echo "=========================================="
+        echo "COMMIT BLOCKED: Missing financial disclaimer"
+        echo "=========================================="
+        echo ""
+        echo "These blog posts reference financial markets but lack a disclaimer:"
+        echo -e "$DISCLAIMER_MISSING"
+        echo "Add to the bottom of each file:"
+        echo '  ---'
+        echo '  *Disclaimer: This post uses financial market concepts as analogies'
+        echo '  for AI safety research. Nothing here constitutes financial advice,'
+        echo '  investment recommendations, or endorsement of any trading strategy.*'
+        echo ""
+        exit 1
+    fi
+fi
+
+# ── 2. Lint/Typecheck (prefer pre-commit if available) ──
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+    echo "[swarm pre-commit] pre-commit (config hooks)"
+    pre-commit run --hook-stage pre-commit
+else
+    STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+    if [ -n "$STAGED_PY" ]; then
+        echo "[swarm pre-commit] ruff (staged files)"
+        ruff check $STAGED_PY
+
+        # ── 3. Type check (staged swarm/ files only) ──
+        # Use --follow-imports=skip to avoid checking pre-existing errors in imports.
+        # If mypy crashes internally (known bug with some files), the handler below
+        # logs a warning and continues instead of blocking the commit.
+        STAGED_SWARM=$(echo "$STAGED_PY" | grep '^swarm/' || true)
+        if [ -n "$STAGED_SWARM" ]; then
+            echo "[swarm pre-commit] mypy (staged swarm/ files)"
+            MYPY_OUTPUT=$(mypy --follow-imports=skip $STAGED_SWARM 2>&1) && true
+            MYPY_EXIT=$?
+            if [ $MYPY_EXIT -ne 0 ]; then
+                if echo "$MYPY_OUTPUT" | grep -q "Internal error\|AssertionError"; then
+                    echo "[swarm pre-commit] mypy internal crash (not a lint error); continuing"
+                    echo "$MYPY_OUTPUT" | tail -3
+                else
+                    echo "$MYPY_OUTPUT"
+                    exit 1
+                fi
+            fi
+        fi
+    else
+        echo "[swarm pre-commit] no staged .py files; skipping ruff/mypy"
+    fi
+fi
+
+# ── 4. Documentation freshness (blocks on new files without CHANGELOG) ──
+# New code/scenario files require a CHANGELOG entry. Modifications are advisory only.
+# Bypass with: SKIP_DOCS_CHECK=1 git commit (for metadata-only commits)
+STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(swarm|scenarios)/' || true)
+STAGED_CHANGELOG=$(git diff --cached --name-only | grep -F 'CHANGELOG.md' || true)
+STAGED_README=$(git diff --cached --name-only | grep -F 'README.md' || true)
+
+if [ -n "$STAGED_CODE" ]; then
+    # Count new files (likely need docs updates)
+    NEW_CODE_FILES=$(git diff --cached --name-only --diff-filter=A | grep -E '^(swarm|scenarios)/' || true)
+    NEW_COUNT=0
+    if [ -n "$NEW_CODE_FILES" ]; then
+        NEW_COUNT=$(echo "$NEW_CODE_FILES" | wc -l | tr -d ' ')
+    fi
+
+    if [ "$NEW_COUNT" -gt 0 ] && [ -z "$STAGED_CHANGELOG" ]; then
+        if [ "${SKIP_DOCS_CHECK:-0}" = "1" ]; then
+            echo "[swarm pre-commit] SKIP_DOCS_CHECK=1: bypassing CHANGELOG requirement for $NEW_COUNT new file(s)."
+        else
+            echo "=========================================="
+            echo "COMMIT BLOCKED: New files without CHANGELOG"
+            echo "=========================================="
+            echo ""
+            echo "$NEW_COUNT new file(s) staged but CHANGELOG.md not updated:"
+            echo "$NEW_CODE_FILES" | head -10 | while read -r f; do echo "    + $f"; done
+            echo ""
+            echo "Add an entry to the [Unreleased] section of CHANGELOG.md, then re-stage."
+            echo "To bypass (metadata-only commits): SKIP_DOCS_CHECK=1 git commit ..."
+            echo ""
+            exit 1
+        fi
+    fi
+
+    # Check for new agent/command files specifically
+    NEW_COMMANDS=$(git diff --cached --name-only --diff-filter=A | grep -E '^\.claude/(commands|agents)/' || true)
+    if [ -n "$NEW_COMMANDS" ]; then
+        STAGED_AGENTS_MD=$(git diff --cached --name-only | grep -F 'AGENTS.md' || true)
+        NEW_AGENTS=$(echo "$NEW_COMMANDS" | grep -E '\.claude/agents/' || true)
+        if [ -n "$NEW_AGENTS" ] && [ -z "$STAGED_AGENTS_MD" ]; then
+            echo "[swarm pre-commit] NOTE: New agent file(s) but AGENTS.md not updated."
+        fi
+        if [ -z "$STAGED_CHANGELOG" ]; then
+            if [ "${SKIP_DOCS_CHECK:-0}" = "1" ]; then
+                echo "[swarm pre-commit] SKIP_DOCS_CHECK=1: bypassing CHANGELOG requirement for new command/agent file(s)."
+            else
+                echo "=========================================="
+                echo "COMMIT BLOCKED: New commands/agents without CHANGELOG"
+                echo "=========================================="
+                echo ""
+                echo "New command/agent file(s) staged but CHANGELOG.md not updated:"
+                echo "$NEW_COMMANDS" | while read -r f; do echo "    + $f"; done
+                echo ""
+                echo "Add an entry to the [Unreleased] section of CHANGELOG.md, then re-stage."
+                echo "To bypass: SKIP_DOCS_CHECK=1 git commit ..."
+                echo ""
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+# ── 5. Docs reminder compliance check ──
+# Check if outstanding docs reminders from post-write hooks were addressed.
+RESOLVED=0
+UNRESOLVED=0
+REMINDER_LOG="$ROOT/.claude/docs_reminders.log"
+if [ -f "$REMINDER_LOG" ] && [ -s "$REMINDER_LOG" ]; then
+    TOTAL_REMINDERS=$(wc -l < "$REMINDER_LOG" | tr -d ' ')
+    RESOLVED=0
+    UNRESOLVED=0
+    UNRESOLVED_LIST=""
+
+    while IFS='|' read -r timestamp filepath hint; do
+        # Check if the reminder was about CHANGELOG and CHANGELOG is now staged
+        ADDRESSED=false
+        if echo "$hint" | grep -q "CHANGELOG" && [ -n "$STAGED_CHANGELOG" ]; then
+            ADDRESSED=true
+        fi
+        if echo "$hint" | grep -q "AGENTS.md"; then
+            STAGED_AGENTS_CHECK=$(git diff --cached --name-only | grep -F 'AGENTS.md' || true)
+            if [ -n "$STAGED_AGENTS_CHECK" ]; then
+                ADDRESSED=true
+            fi
+        fi
+        if echo "$hint" | grep -q "README" && [ -n "$STAGED_README" ]; then
+            ADDRESSED=true
+        fi
+
+        if [ "$ADDRESSED" = true ]; then
+            RESOLVED=$((RESOLVED + 1))
+        else
+            UNRESOLVED=$((UNRESOLVED + 1))
+            UNRESOLVED_LIST="${UNRESOLVED_LIST}    $(basename "$filepath"): $hint\n"
+        fi
+    done < "$REMINDER_LOG"
+
+    if [ "$UNRESOLVED" -gt 0 ]; then
+        echo "[swarm pre-commit] DOCS COMPLIANCE: $RESOLVED/$TOTAL_REMINDERS reminders addressed, $UNRESOLVED outstanding:"
+        echo -e "$UNRESOLVED_LIST"
+    else
+        echo "[swarm pre-commit] DOCS COMPLIANCE: all $TOTAL_REMINDERS reminder(s) addressed"
+    fi
+
+    # Only clear resolved entries; keep unresolved reminders for next commit
+    if [ "$UNRESOLVED" -gt 0 ] && [ "$RESOLVED" -gt 0 ]; then
+        # Rewrite log with only unresolved entries
+        TEMP_LOG=$(mktemp)
+        while IFS='|' read -r timestamp filepath hint; do
+            KEEP=true
+            if echo "$hint" | grep -q "CHANGELOG" && [ -n "$STAGED_CHANGELOG" ]; then
+                KEEP=false
+            fi
+            if echo "$hint" | grep -q "AGENTS.md"; then
+                STAGED_AGENTS_RECHECK=$(git diff --cached --name-only | grep -F 'AGENTS.md' || true)
+                if [ -n "$STAGED_AGENTS_RECHECK" ]; then
+                    KEEP=false
+                fi
+            fi
+            if echo "$hint" | grep -q "README" && [ -n "$STAGED_README" ]; then
+                KEEP=false
+            fi
+            if [ "$KEEP" = true ]; then
+                echo "${timestamp}|${filepath}|${hint}" >> "$TEMP_LOG"
+            fi
+        done < "$REMINDER_LOG"
+        mv "$TEMP_LOG" "$REMINDER_LOG"
+    elif [ "$UNRESOLVED" -eq 0 ]; then
+        # All resolved — clear the log
+        : > "$REMINDER_LOG"
+    fi
+    # If all unresolved (RESOLVED=0), leave the log as-is
+fi
+
+# ── 6. Provenance log ──
+# Append a JSONL entry recording what this commit touches and compliance status.
+PROVENANCE_LOG="$ROOT/.claude/provenance.jsonl"
+BRANCH_NAME=$(git branch --show-current 2>/dev/null || echo "detached")
+TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+STAGED_LIST=$(git diff --cached --name-only | tr '\n' ',' | sed 's/,$//')
+DOCS_COSTAGED=""
+[ -n "$STAGED_CHANGELOG" ] && DOCS_COSTAGED="${DOCS_COSTAGED}changelog,"
+[ -n "$STAGED_README" ] && DOCS_COSTAGED="${DOCS_COSTAGED}readme,"
+NEW_FILES_STAGED=$(git diff --cached --name-only --diff-filter=A | tr '\n' ',' | sed 's/,$//')
+
+# Use python for safe JSON serialization
+python3 -c "
+import json, sys
+entry = {
+    'timestamp': '$TIMESTAMP',
+    'branch': '$BRANCH_NAME',
+    'session_id': '${SESSION_ID:-}',
+    'worktree_id': '${WORKTREE_ID:-}',
+    'agent_role': '${SWARM_AGENT_ROLE:-}',
+    'files_changed': [f for f in '$STAGED_LIST'.split(',') if f],
+    'new_files': [f for f in '$NEW_FILES_STAGED'.split(',') if f],
+    'docs_co_staged': [d for d in '${DOCS_COSTAGED}'.split(',') if d],
+    'docs_reminders_resolved': $RESOLVED if '$RESOLVED' else 0,
+    'docs_reminders_unresolved': $UNRESOLVED if '$UNRESOLVED' else 0,
+}
+# Remove empty optional fields
+entry = {k: v for k, v in entry.items() if v or v == 0}
+print(json.dumps(entry))
+" >> "$PROVENANCE_LOG" 2>/dev/null || true
+
+# ── 7. Tests ──
+# Tests run in pre-push (via `make ci`), NOT pre-commit.
+# This keeps commits fast (~2s) and avoids HEAD race conditions
+# when parallel sessions share a worktree.
+# To run tests before committing: python -m pytest tests/ -x -q
+
+echo "[swarm pre-commit] done"
+exit 0

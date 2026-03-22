@@ -1,0 +1,118 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: lenny-content-swarm
+  display_name: "Lenny Content Swarm"
+  tier: professional
+  icon: library
+  tagline: "Multi-agent RAG swarm over newsletter and podcast content"
+  use_cases:
+    - Newsletter content analysis and synthesis
+    - Podcast transcript search and summarization
+    - Cross-episode theme extraction
+    - Content-based Q&A with citations
+  category: research
+
+extends: _base
+
+agents:
+  # Multiple retriever variants compete on search strategy
+  - ref: research/content-retriever
+    count: 3
+    role_override:
+      title: "Retriever (Hybrid)"
+    economic:
+      initial_balance: 400
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [dataset_search, dataset_read, metadata_filter]
+    domain_tags: [retrieval, search, bm25, semantic, hybrid]
+
+  # Multiple analysts produce competing answers
+  - ref: research/content-analyst
+    count: 2
+    role_override:
+      title: "Content Analyst"
+    economic:
+      initial_balance: 600
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [dataset_read, summarize, cite, framework_extract]
+    domain_tags: [analysis, synthesis, frameworks, product, growth]
+
+  # Critic evaluates all analyst outputs
+  - ref: research/content-critic
+    count: 1
+    role_override:
+      title: "Quality Critic"
+    economic:
+      initial_balance: 500
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [dataset_read, score, flag_hallucination]
+    domain_tags: [evaluation, groundedness, quality, hallucination-detection]
+
+  # Synthesizer produces final answer from best outputs
+  - ref: research/content-synthesizer
+    count: 1
+    role_override:
+      title: "Final Synthesizer"
+    economic:
+      initial_balance: 700
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [dataset_read, cite, synthesize, publish]
+    domain_tags: [synthesis, editorial, provenance, telemetry]
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.20
+    circuit_breaker:
+      enabled: true
+      threshold: 3
+    tax_rate: 0.03
+
+workflows:
+  - name: swarm_query
+    pipeline: nexus_full
+    stages:
+      - retrieve: [content-retriever]
+      - analyze: [content-analyst]
+      - critique: [content-critic]
+      - synthesize: [content-synthesizer]
+    quality_gates:
+      analyze_to_critique:
+        min_approvals: 1
+      critique_to_synthesize:
+        min_evidence_items: 2
+        min_approvals: 1
+
+  - name: framework_extraction
+    pipeline: nexus_full
+    stages:
+      - retrieve: [content-retriever]
+      - analyze: [content-analyst]
+      - critique: [content-critic]
+      - synthesize: [content-synthesizer]
+    quality_gates:
+      analyze_to_critique:
+        min_approvals: 1
+      critique_to_synthesize:
+        min_evidence_items: 3
+        min_approvals: 1
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 50.0
+
+dataset:
+  source: github
+  repo: LennysNewsletter/lennys-newsletterpodcastdata
+  directories:
+    - newsletters
+    - podcasts
+  index_file: index.json
+  chunk_size: 3000
+  chunk_overlap: 400

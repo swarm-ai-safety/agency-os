@@ -1,0 +1,80 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: product-squad
+  display_name: "Product Squad"
+  tier: professional
+  icon: layout-grid
+  tagline: "Discovery, design, build, and ship product iterations"
+  use_cases:
+    - Sprint-based product development
+    - User research and UX design
+    - Cross-functional feature delivery
+  category: product
+
+extends: _base
+
+agents:
+  - ref: product/sprint-prioritizer
+    economic:
+      initial_balance: 900
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [task_create, prioritize, roadmap, report]
+
+  - ref: design/ux-researcher
+    economic:
+      initial_balance: 700
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [user_research, prototype, design_review]
+
+  - ref: engineering/senior-developer
+    count: 2
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [code_write, code_review, git_commit]
+      deny: [deploy_production]
+
+  - ref: testing/evidence-collector
+    economic:
+      initial_balance: 500
+      bid_strategy: default
+    permissions:
+      tools: [test_run, screenshot, code_review]
+
+  - ref: project-management/project-manager-senior
+    economic:
+      initial_balance: 700
+      bid_strategy: default
+    permissions:
+      tools: [task_create, task_assign, schedule, report]
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.12
+    tax_rate: 0.04
+
+workflows:
+  - name: product_iteration
+    pipeline: nexus_full
+    stages:
+      - discover: [sprint-prioritizer, ux-researcher]
+      - design: [ux-researcher]
+      - build: [senior-developer]
+      - test: [evidence-collector]
+      - ship: [project-manager-senior]
+    quality_gates:
+      build_to_test:
+        min_approvals: 1
+      test_to_ship:
+        min_evidence_items: 3
+        min_approvals: 2
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 80.0

@@ -1,0 +1,184 @@
+apiVersion: agency-os/v1
+kind: Package
+metadata:
+  name: agentic-engineer
+  display_name: "Agentic Engineer"
+  tier: professional
+  icon: brain-circuit
+  tagline: "Planning-first autonomous software engineering"
+  use_cases:
+    - Full-stack web application development
+    - API service design and implementation
+    - CLI tool development with testing
+    - Architecture-first project decomposition
+  category: engineering
+
+extends: _base
+
+# Planning-first autonomous engineering organization.
+# Inspired by pre.dev: the bottleneck is planning, not code generation.
+#
+# Flow: describe project → research → architecture → milestones →
+#       tasks → isolated sandbox execution → verification → ship
+#
+# Key differentiator: planning layer sits between task submission
+# and agent execution, producing structured plans with dependency
+# graphs before any code is written.
+
+agents:
+  # --- Planning Layer ---
+  - ref: strategy/project-planner
+    count: 1
+    role_override:
+      title: "Lead Planner"
+    economic:
+      initial_balance: 1000
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [plan_generate, architecture_design, task_decompose, effort_estimate]
+      deny: [code_write, deploy_production]
+    domain_tags: [planning, architecture, decomposition, estimation]
+
+  - ref: strategy/architecture-researcher
+    count: 1
+    role_override:
+      title: "Architecture Researcher"
+    economic:
+      initial_balance: 600
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [web_search, market_research, tech_evaluation]
+      deny: [code_write, deploy_production]
+    domain_tags: [research, architecture, technology, market-analysis]
+
+  # --- Execution Layer ---
+  - ref: engineering/senior-developer
+    count: 2
+    role_override:
+      title: "Senior Engineer"
+    economic:
+      initial_balance: 800
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [code_write, code_review, git_commit]
+      deny: [deploy_production]
+    domain_tags: [backend, api, database, python, architecture]
+
+  - ref: engineering/frontend-developer
+    count: 1
+    role_override:
+      title: "Frontend Engineer"
+    economic:
+      initial_balance: 700
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [code_write, code_review, ui_design]
+    domain_tags: [frontend, react, css, ui, accessibility]
+
+  - ref: engineering/backend-architect
+    count: 1
+    role_override:
+      title: "Backend Architect"
+    economic:
+      initial_balance: 800
+      bid_strategy: specialization_bonus
+    permissions:
+      tools: [code_write, code_review, architecture_review]
+    domain_tags: [architecture, database, api, system-design, security]
+
+  - ref: engineering/devops-automator
+    count: 1
+    role_override:
+      title: "DevOps Engineer"
+    economic:
+      initial_balance: 600
+      bid_strategy: budget_conscious
+    permissions:
+      tools: [deploy_staging, deploy_production, infrastructure, monitoring]
+    domain_tags: [deploy, ci-cd, docker, infrastructure, monitoring]
+
+  # --- Verification Layer ---
+  - ref: testing/task-verifier
+    count: 1
+    role_override:
+      title: "Task Verifier"
+    economic:
+      initial_balance: 500
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [test_run, lint_check, typecheck, screenshot, sandbox_execute]
+    domain_tags: [testing, verification, qa, lint, typecheck]
+
+  - ref: testing/evidence-collector
+    count: 1
+    role_override:
+      title: "QA Engineer"
+    economic:
+      initial_balance: 500
+      bid_strategy: quality_weighted
+    permissions:
+      tools: [test_run, screenshot, code_review]
+    domain_tags: [testing, qa, screenshot, regression]
+
+governance:
+  preset: balanced
+  overrides:
+    audit_frequency: 0.20
+    circuit_breaker:
+      enabled: true
+      threshold: 3
+    tax_rate: 0.05
+
+workflows:
+  # Main workflow: planning-first project execution
+  - name: project_execution
+    pipeline: nexus_full
+    stages:
+      - research: [architecture-researcher]
+      - plan: [project-planner]
+      - implement: [senior-developer, frontend-developer, backend-architect]
+      - verify: [task-verifier, evidence-collector]
+      - deploy: [devops-automator]
+    quality_gates:
+      research_to_plan:
+        min_evidence_items: 1
+      plan_to_implement:
+        min_approvals: 1
+        min_evidence_items: 1
+      implement_to_verify:
+        min_approvals: 1
+      verify_to_deploy:
+        min_evidence_items: 3
+        min_approvals: 2
+
+  # Quick mode: skip research, plan from template, execute
+  - name: quick_build
+    pipeline: nexus_full
+    stages:
+      - plan: [project-planner]
+      - implement: [senior-developer, frontend-developer]
+      - verify: [task-verifier]
+    quality_gates:
+      plan_to_implement:
+        min_approvals: 1
+      implement_to_verify:
+        min_evidence_items: 1
+        min_approvals: 1
+
+deployment:
+  llm_provider: anthropic
+  model: claude-sonnet-4-20250514
+  budget_limit_usd: 150.0
+
+planning:
+  enabled: true
+  default_template: web_app
+  templates: [web_app, api_service, cli_tool]
+  sandbox:
+    enabled: true
+    verification_commands:
+      - "ruff check . --quiet || true"
+      - "mypy . --ignore-missing-imports --quiet || true"
+    max_duration_seconds: 300
+    max_memory_mb: 512
+  max_retries: 1
