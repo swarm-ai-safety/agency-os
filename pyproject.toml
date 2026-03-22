@@ -50,7 +50,7 @@ llm = [
 dashboard = [
     "streamlit~=1.30",
     "tornado>=6.5.5",
-    "plotly~=5.0",
+    "plotly~=6.6",
 ]
 metering = [
     "stripe~=7.0.0",
