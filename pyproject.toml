@@ -44,7 +44,7 @@ api = [
     "apscheduler~=3.10",
 ]
 llm = [
-    "anthropic~=0.52.0",
+    "anthropic~=0.86.0",
     "openai~=2.26.0",
 ]
 dashboard = [
