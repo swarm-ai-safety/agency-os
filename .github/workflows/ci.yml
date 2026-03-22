@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -76,7 +76,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -94,7 +94,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -126,7 +126,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
@@ -154,7 +154,7 @@ jobs:
           --health-retries 6
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
