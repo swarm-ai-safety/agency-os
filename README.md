@@ -193,16 +193,6 @@ make lint         # Lint + format
 make typecheck    # mypy
 ```
 
-### Optional private modules
-
-Stripe billing, Coinbase wallet integration, and pricing configuration are available as a separate private package:
-
-```bash
-pip install agency-os-private
-```
-
-The core platform works without it — billing/wallet endpoints return 503 gracefully.
-
 ---
 
 ## License
