@@ -17,53 +17,34 @@ htmlcov/
 runs/
 agency_os.db
 .next/
-site/coverage/
 backups/
 .DS_Store
 *.db.backup*
 
-# Private modules (extracted to agency-os-private repo)
-agency_os/billing_private/
-agency_os/wallet_private/
-tests/unit/test_stripe_billing.py
-scripts/setup_stripe_meters.py
-
-# Agent operational data (private)
-agents/*/memory/
-agents/*/life/
-
-# Deploy skills with infrastructure details (private)
-.claude/skills/deploy-site/
-
-# Website and deploy config (private)
-site/
-deploy/
-
-# Pricing and metering internals (private)
-agency_os/metering_private/
-pricing.schema.json
-scripts/validate-pricing.js
-tests/unit/test_worker_budget.py
-
-# Internal operations docs, playbooks, operational memory (private)
+# -----------------------------------------------------------
+# Private content lives in: agency-os-private
+# Repo: https://github.com/swarm-ai-safety/agency-os-private
+# Clone it as a sibling: ../agency-os-private/
+# -----------------------------------------------------------
+agents/
 docs/
 playbooks/
 memory/
-# Proprietary content (private)
 content/
-
-# Database migrations (private)
 alembic/
-
-# Agent configs and operational data (private)
-agents/
-scripts/lenny_ingest.py
-scripts/lenny_query.py
+deploy/
+site/
 scripts/
 .beads/
-.env.example
-
-.gitattributes
-alembic.ini
+.claude/skills/deploy-site/
+agency_os/billing_private/
+agency_os/wallet_private/
+agency_os/metering_private/
+tests/unit/test_stripe_billing.py
+tests/unit/test_worker_budget.py
+pricing.schema.json
 docker-compose.yml
+alembic.ini
+.env.example
 .dockerignore
+.gitattributes
