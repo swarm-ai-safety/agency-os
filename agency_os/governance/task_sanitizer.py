@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from agency_os.governance.normalize import normalize_for_matching
+
 # ---------------------------------------------------------------------------
 # Patterns that indicate prompt injection attempts
 # ---------------------------------------------------------------------------
@@ -48,6 +50,10 @@ _DELIMITER_INJECTION_PATTERN = re.compile(
 # Role-play / persona-switch attempts
 _ROLE_SWITCH_PATTERN = re.compile(
     r"(?:"
+    r"(?:act|behave|pretend|respond)\s+(?:as|like)\s+(?:a\s+)?(?:\w+\s+)*?"
+    r"(?:different|new|another|unrestricted|unfiltered|uncensored|unlimited|"
+    r"jailbroken|evil|unaligned|unrestraint|harmful)\s*(?:\w+)?"
+    r"|"
     r"(?:act|behave|pretend|respond)\s+(?:as|like)\s+(?:a\s+)?(?:different|new|another)"
     r"|"
     r"(?:you\s+must|you\s+should|you\s+will)\s+(?:now\s+)?(?:act|be|become|pretend)"
@@ -89,9 +95,14 @@ def sanitize_task_description(raw: str) -> SanitizationResult:
     flags: list[str] = []
     cleaned = raw
 
+    # Normalize a copy for pattern matching (defeats character-level evasion)
+    normalized = normalize_for_matching(cleaned)
+
     for name, pattern in _ALL_PATTERNS:
-        if pattern.search(cleaned):
+        # Check against both raw and normalized forms
+        if pattern.search(cleaned) or pattern.search(normalized):
             flags.append(name)
+            # Redact from the raw text (best-effort) and normalized
             cleaned = pattern.sub("[REDACTED]", cleaned)
 
     # Collapse any remaining XML-style tags that could confuse the model

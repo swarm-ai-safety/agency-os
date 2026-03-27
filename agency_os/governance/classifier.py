@@ -11,6 +11,7 @@ import enum
 import re
 from dataclasses import dataclass
 
+from agency_os.governance.normalize import normalize_for_matching
 from agency_os.governance.presets import list_profiles
 from agency_os.governance.trust import TrustScore
 
@@ -64,7 +65,7 @@ def classify_task(title: str, description: str = "") -> TaskType:
     Returns:
         The detected TaskType.
     """
-    text = f"{title} {description}"
+    text = normalize_for_matching(f"{title} {description}")
 
     pipeline_score = len(_PIPELINE_PATTERNS.findall(text))
     coordination_score = len(_COORDINATION_PATTERNS.findall(text))
