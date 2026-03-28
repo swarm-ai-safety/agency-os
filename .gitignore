@@ -6,6 +6,7 @@ build/
 .eggs/
 *.egg
 .env
+.env.*
 .env*.local
 .venv/
 venv/
@@ -26,20 +27,28 @@ backups/
 # Repo: https://github.com/swarm-ai-safety/agency-os-private
 # Clone it as a sibling: ../agency-os-private/
 # -----------------------------------------------------------
-agents/
-docs/
-playbooks/
-memory/
-content/
-alembic/
-deploy/
-site/
-scripts/
-.beads/
-.claude/skills/deploy-site/
-agency_os/billing_private/
-agency_os/wallet_private/
-agency_os/metering_private/
+# Symlinked directories (no trailing slash to match symlinks)
+agents
+docs
+playbooks
+memory
+content
+alembic
+deploy
+site
+scripts
+.beads
+.claude
+agency_os/billing_private
+agency_os/wallet_private
+agency_os/metering_private
+# Private directories (no trailing slash to match symlinks)
+demos
+integrations
+zero-human-labs
+agency-os
+tests/demos
+tests/unit/test_hyperliquid_client.py
 tests/unit/test_stripe_billing.py
 tests/unit/test_worker_budget.py
 pricing.schema.json
