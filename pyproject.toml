@@ -45,7 +45,7 @@ api = [
 ]
 llm = [
     "anthropic~=0.52.0",
-    "openai~=2.26.0",
+    "openai~=2.30.0",
 ]
 dashboard = [
     "streamlit~=1.30",
