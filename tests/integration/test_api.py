@@ -1036,3 +1036,211 @@ class TestPricing:
         # Verify metadata
         assert data["metadata"]["currency"] == "USD"
         assert data["metadata"]["billingCycle"] == "monthly"
+
+
+class TestPlansV1:
+    """Test the /api/v1/plans public endpoint."""
+
+    def test_v1_plans_returns_pricing(self, unauthed_client):
+        resp = unauthed_client.get("/api/v1/plans")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "plans" in data
+        plan_ids = [p["id"] for p in data["plans"]]
+        assert "free" in plan_ids
+        assert "pro" in plan_ids
+
+    def test_v1_plans_no_auth_required(self, unauthed_client):
+        resp = unauthed_client.get("/api/v1/plans")
+        assert resp.status_code == 200
+
+
+class TestTenantProfileUpdate:
+    """Test PATCH /api/v1/tenants/me profile updates."""
+
+    def test_update_name(self, client):
+        resp = client.patch("/api/v1/tenants/me", json={"name": "New Name"})
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "New Name"
+
+        # Verify persistence
+        me = client.get("/api/v1/tenants/me").json()
+        assert me["name"] == "New Name"
+
+    def test_update_email(self, client):
+        resp = client.patch("/api/v1/tenants/me", json={"email": "new@example.com"})
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "new@example.com"
+
+    def test_update_both(self, client):
+        resp = client.patch(
+            "/api/v1/tenants/me",
+            json={"name": "Updated Corp", "email": "updated@example.com"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Updated Corp"
+        assert data["email"] == "updated@example.com"
+
+    def test_no_fields_returns_400(self, client):
+        resp = client.patch("/api/v1/tenants/me", json={})
+        assert resp.status_code == 400
+        assert "No fields" in resp.json()["detail"]
+
+    def test_duplicate_email_returns_409(self, unauthed_client):
+        from agency_os.service.api import app as app_module
+
+        # Register two tenants
+        t1, key1 = app_module.tenant_registry.register(name="Corp A")
+        t1.metadata["email"] = "taken@example.com"
+        app_module.tenant_registry.save_metadata(t1)
+
+        t2, key2 = app_module.tenant_registry.register(name="Corp B")
+        unauthed_client.headers["X-API-Key"] = key2
+
+        resp = unauthed_client.patch(
+            "/api/v1/tenants/me", json={"email": "taken@example.com"}
+        )
+        assert resp.status_code == 409
+
+    def test_unauthenticated_returns_401(self, unauthed_client):
+        resp = unauthed_client.patch("/api/v1/tenants/me", json={"name": "Hacker"})
+        assert resp.status_code == 401
+
+    def test_profile_update_is_audited(self, client):
+        from agency_os.service.api import app as app_module
+
+        client.patch("/api/v1/tenants/me", json={"name": "Audited Corp"})
+        logs = app_module.db.get_audit_log()
+        assert any(log["action"] == "tenant.profile_updated" for log in logs)
+
+
+class TestOrgPlanChange:
+    """Test PATCH /api/v1/orgs/{org_id} plan changes."""
+
+    def _create_org(self, client):
+        resp = client.post("/api/v1/orgs", json={"package_name": "saas_dev_studio"})
+        assert resp.status_code == 200
+        return resp.json()["org_id"]
+
+    def test_change_package(self, client):
+        org_id = self._create_org(client)
+        resp = client.patch(
+            f"/api/v1/orgs/{org_id}",
+            json={"package_name": "saas_dev_studio"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["org_id"] == org_id
+        assert data["status"] == "running"
+        assert data["agent_count"] > 0
+
+    def test_invalid_package_returns_404(self, client):
+        org_id = self._create_org(client)
+        resp = client.patch(
+            f"/api/v1/orgs/{org_id}",
+            json={"package_name": "nonexistent_package"},
+        )
+        assert resp.status_code == 404
+
+    def test_no_fields_returns_400(self, client):
+        org_id = self._create_org(client)
+        resp = client.patch(f"/api/v1/orgs/{org_id}", json={})
+        assert resp.status_code == 400
+
+    def test_cross_tenant_returns_403(self, unauthed_client):
+        from agency_os.service.api import app as app_module
+
+        # Create org under tenant A
+        t_a, key_a = app_module.tenant_registry.register(name="Tenant A")
+        t_a.metadata["billing_status"] = "active"
+        t_a.metadata["stripe_customer_id"] = "cus_a"
+        app_module.tenant_registry.save_metadata(t_a)
+
+        unauthed_client.headers["X-API-Key"] = key_a
+        resp = unauthed_client.post(
+            "/api/v1/orgs", json={"package_name": "saas_dev_studio"}
+        )
+        org_id = resp.json()["org_id"]
+
+        # Try to update from tenant B
+        t_b, key_b = app_module.tenant_registry.register(name="Tenant B")
+        unauthed_client.headers["X-API-Key"] = key_b
+
+        resp = unauthed_client.patch(
+            f"/api/v1/orgs/{org_id}",
+            json={"package_name": "saas_dev_studio"},
+        )
+        assert resp.status_code == 403
+
+    def test_plan_change_is_audited(self, client):
+        from agency_os.service.api import app as app_module
+
+        org_id = self._create_org(client)
+        client.patch(
+            f"/api/v1/orgs/{org_id}",
+            json={"package_name": "saas_dev_studio"},
+        )
+        logs = app_module.db.get_audit_log()
+        assert any(log["action"] == "org.plan_changed" for log in logs)
+
+
+class TestWaitlist:
+    def test_post_signup_public(self, unauthed_client):
+        resp = unauthed_client.post(
+            "/api/v1/waitlist", json={"email": "test@example.com"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+    def test_get_waitlist_requires_auth(self, unauthed_client):
+        resp = unauthed_client.get("/api/v1/waitlist")
+        assert resp.status_code == 401
+
+    def test_get_waitlist_returns_signups(self, client):
+        # Add a signup first
+        client.post("/api/v1/waitlist", json={"email": "alice@example.com"})
+        client.post("/api/v1/waitlist", json={"email": "bob@example.com"})
+
+        resp = client.get("/api/v1/waitlist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) >= 2
+        emails = {entry["email"] for entry in data}
+        assert "alice@example.com" in emails
+        assert "bob@example.com" in emails
+
+    def test_get_waitlist_pagination(self, client):
+        for i in range(5):
+            client.post("/api/v1/waitlist", json={"email": f"page{i}@example.com"})
+
+        resp = client.get("/api/v1/waitlist?limit=2&offset=0")
+        assert resp.status_code == 200
+        page1 = resp.json()
+        assert len(page1) == 2
+
+        resp = client.get("/api/v1/waitlist?limit=2&offset=2")
+        assert resp.status_code == 200
+        page2 = resp.json()
+        assert len(page2) == 2
+
+        # No overlap
+        ids1 = {e["email"] for e in page1}
+        ids2 = {e["email"] for e in page2}
+        assert ids1.isdisjoint(ids2)
+
+    def test_get_waitlist_stats_requires_auth(self, unauthed_client):
+        resp = unauthed_client.get("/api/v1/waitlist/stats")
+        assert resp.status_code == 401
+
+    def test_get_waitlist_stats(self, client):
+        client.post("/api/v1/waitlist", json={"email": "stats@example.com"})
+
+        resp = client.get("/api/v1/waitlist/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] >= 1
+        assert data["last_24h"] >= 1
+        assert data["last_7d"] >= 1
+        assert data["last_30d"] >= 1

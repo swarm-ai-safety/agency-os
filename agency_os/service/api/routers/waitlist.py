@@ -1,4 +1,4 @@
-"""Waitlist signup endpoint — public, no auth required."""
+"""Waitlist endpoints — public POST for signups, authenticated GET for retrieval."""
 
 from __future__ import annotations
 
@@ -9,8 +9,11 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr
+
+from agency_os.service.api.middleware.auth import get_current_tenant
+from agency_os.tenancy.tenant import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,19 @@ def set_db(db: Any) -> None:
 
 class WaitlistSignup(BaseModel):
     email: EmailStr
+
+
+class WaitlistEntry(BaseModel):
+    email: str
+    signed_up_at: float | None = None
+    ip_hash: str | None = None
+
+
+class WaitlistStats(BaseModel):
+    total: int
+    last_24h: int
+    last_7d: int
+    last_30d: int
 
 
 def _check_rate_limit(client_ip: str) -> None:
@@ -66,3 +82,27 @@ async def signup(body: WaitlistSignup, request: Request) -> dict[str, str]:
         logger.info("Waitlist signup (no DB): %s", body.email)
 
     return {"status": "ok"}
+
+
+@router.get("", response_model=list[WaitlistEntry])
+async def get_waitlist(
+    tenant: Tenant = Depends(get_current_tenant),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[WaitlistEntry]:
+    """Retrieve waitlist signups (authenticated, admin-only)."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    rows = _db.get_waitlist_signups(limit=limit, offset=offset)
+    return [WaitlistEntry(**row) for row in rows]
+
+
+@router.get("/stats", response_model=WaitlistStats)
+async def get_waitlist_stats(
+    tenant: Tenant = Depends(get_current_tenant),
+) -> WaitlistStats:
+    """Retrieve waitlist signup statistics (authenticated, admin-only)."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    stats = _db.get_waitlist_stats()
+    return WaitlistStats(**stats)

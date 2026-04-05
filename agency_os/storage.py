@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import re
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Any, cast
@@ -15,11 +15,14 @@ from typing import Any, cast
 from alembic.command import upgrade
 from alembic.config import Config
 from sqlalchemy import create_engine, delete, insert, select, update
+from sqlalchemy import event as sa_event
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.pool import StaticPool
 
 from agency_os import models
+
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -35,12 +38,13 @@ class Database:
             db_path = os.environ.get("DATABASE_PATH", "agency_os.db")
         self.db_path = db_path
 
-        # SQLAlchemy engine (new)
+        # SQLAlchemy engine
         database_url = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
         is_sqlite = database_url.startswith("sqlite")
         self._is_sqlite = is_sqlite
         self._schema_name: str | None = None
-        engine_kwargs: dict[str, Any] = {}
+        echo = os.environ.get("SQLALCHEMY_ECHO", "").lower() in ("1", "true", "yes")
+        engine_kwargs: dict[str, Any] = {"echo": echo}
         if is_sqlite:
             engine_kwargs["connect_args"] = {"check_same_thread": False}
             engine_kwargs["poolclass"] = StaticPool
@@ -49,10 +53,16 @@ class Database:
             database_url = self._with_search_path(database_url, self._schema_name)
             engine_kwargs["pool_pre_ping"] = True
             engine_kwargs["pool_size"] = self._get_env_int(
-                "SQLALCHEMY_POOL_SIZE", default=5, minimum=1
+                "SQLALCHEMY_POOL_SIZE", default=20, minimum=1
             )
             engine_kwargs["max_overflow"] = self._get_env_int(
                 "SQLALCHEMY_MAX_OVERFLOW", default=10, minimum=0
+            )
+            engine_kwargs["pool_timeout"] = self._get_env_int(
+                "SQLALCHEMY_POOL_TIMEOUT", default=30, minimum=1
+            )
+            engine_kwargs["pool_recycle"] = self._get_env_int(
+                "SQLALCHEMY_POOL_RECYCLE", default=1800, minimum=-1
             )
         self._engine = create_engine(
             database_url,
@@ -60,10 +70,16 @@ class Database:
         )
         self._base_engine = self._engine
         self._closed = False
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA foreign_keys = ON")
-        self._conn.execute("PRAGMA journal_mode = WAL")
+
+        # Set SQLite PRAGMAs via event listener instead of raw sqlite3 connection
+        if is_sqlite:
+
+            @sa_event.listens_for(self._engine, "connect")
+            def _set_sqlite_pragmas(dbapi_conn: Any, _connection_record: Any) -> None:
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys = ON")
+                cursor.execute("PRAGMA journal_mode = WAL")
+                cursor.close()
 
         self._lock = threading.Lock()
         self._ensure_non_sqlite_schema()
@@ -133,10 +149,31 @@ class Database:
         if self._closed:
             return
         self._closed = True
-        self._conn.close()
         self._engine.dispose()
         if self._engine is not self._base_engine:
             self._base_engine.dispose()
+
+    # -- pool metrics -----------------------------------------------------
+
+    def get_pool_status(self) -> dict[str, Any]:
+        """Return connection pool metrics (active/idle/overflow).
+
+        For SQLite (StaticPool), returns minimal info since pooling is not applicable.
+        """
+        pool = self._engine.pool
+        if self._is_sqlite:
+            return {
+                "pool_size": 1,
+                "checked_in": 1 if not self._closed else 0,
+                "checked_out": 0,
+                "overflow": 0,
+            }
+        return {
+            "pool_size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
 
     # -- schema -----------------------------------------------------------
 
@@ -178,16 +215,6 @@ class Database:
         return str(row[0])
 
     # -- helpers ----------------------------------------------------------
-
-    @staticmethod
-    def _row_to_dict(row: sqlite3.Row | None) -> dict | None:
-        if row is None:
-            return None
-        return dict(row)
-
-    @staticmethod
-    def _rows_to_list(rows: list[sqlite3.Row]) -> list[dict]:
-        return [dict(r) for r in rows]
 
     @staticmethod
     def _dialect_insert(conn: Any, table: Any) -> Any:
@@ -1130,3 +1157,51 @@ class Database:
             # INSERT OR IGNORE behavior
             stmt = stmt.on_conflict_do_nothing(index_elements=["email"])
             conn.execute(stmt)
+
+    def get_waitlist_signups(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Retrieve waitlist signups, most recent first."""
+        import sqlalchemy as sa
+
+        with self._engine.connect() as conn:
+            stmt = (
+                sa.select(models.waitlist)
+                .order_by(models.waitlist.c.signed_up_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            rows = conn.execute(stmt).mappings().all()
+            return [dict(r) for r in rows]
+
+    def get_waitlist_stats(self) -> dict[str, int]:
+        """Return waitlist signup counts: total, last_24h, last_7d, last_30d."""
+        import time as _time
+
+        import sqlalchemy as sa
+
+        now = _time.time()
+        cutoffs = {
+            "last_24h": now - 86400,
+            "last_7d": now - 86400 * 7,
+            "last_30d": now - 86400 * 30,
+        }
+        with self._engine.connect() as conn:
+            total = (
+                conn.execute(
+                    sa.select(sa.func.count()).select_from(models.waitlist)
+                ).scalar()
+                or 0
+            )
+            stats: dict[str, int] = {"total": total}
+            for key, cutoff in cutoffs.items():
+                count = (
+                    conn.execute(
+                        sa.select(sa.func.count())
+                        .select_from(models.waitlist)
+                        .where(models.waitlist.c.signed_up_at >= cutoff)
+                    ).scalar()
+                    or 0
+                )
+                stats[key] = count
+            return stats

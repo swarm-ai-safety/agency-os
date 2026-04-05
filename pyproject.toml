@@ -42,6 +42,7 @@ api = [
     "sqlalchemy~=2.0",
     "alembic~=1.14",
     "apscheduler~=3.10",
+    "psycopg2-binary~=2.9",
 ]
 llm = [
     "anthropic~=0.52.0",
