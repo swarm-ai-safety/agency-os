@@ -2,8 +2,12 @@ name: Repo Cleanup
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "15 3 * * *"
+  # Scheduled run disabled: the cleanup script lives in scripts/, which is
+  # gitignored on this public repo (private content), so the scheduled job
+  # could never find scripts/repo-cleanup.sh and failed on every run.
+  # Re-enable once the script is available on a non-ignored path.
+  # schedule:
+  #   - cron: "15 3 * * *"
 
 permissions:
   contents: write
