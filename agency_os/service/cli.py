@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from agency_os.agent_git import (
+    AgentDelegation,
+    AgentGitAction,
+    AgentGitAttestation,
+    AgentGitScope,
+    AgentGitWorkspace,
+    agent_ref,
+    evaluate_action,
+)
 from agency_os.orchestration.organization import Organization
 from agency_os.packages.loader import (
     list_builtin_packages,
@@ -21,6 +32,12 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+agent_git_app = typer.Typer(
+    name="agent-git",
+    help="Delegated identity, policy, and provenance for coding agents.",
+    no_args_is_help=True,
+)
+app.add_typer(agent_git_app)
 
 
 @app.command()
@@ -178,6 +195,144 @@ def run_task(
         else:
             console.print("  Status: [red]failed[/red]")
             console.print(f"  Error: {exec_result.get('error', 'unknown')}")
+
+
+@agent_git_app.command("delegate")
+def agent_git_delegate(
+    agent_id: str = typer.Option(..., help="Agent principal receiving authority"),
+    delegated_by: str = typer.Option(..., help="Human or org granting authority"),
+    repo: str = typer.Option(..., help="Repository slug, e.g. owner/name"),
+    purpose: str = typer.Option(..., help="Task or reason for this delegation"),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write delegation JSON to this path"
+    ),
+    action: list[AgentGitAction] | None = typer.Option(
+        None,
+        "--action",
+        help="Delegated action; repeat for multiple actions",
+    ),
+    ttl_minutes: int = typer.Option(240, help="Delegation lifetime in minutes"),
+    ref_prefix: list[str] | None = typer.Option(
+        None, "--ref-prefix", help="Allowed git ref prefix"
+    ),
+    protected_path: list[str] | None = typer.Option(
+        None, "--protected-path", help="Path prefix the agent may not touch"
+    ),
+    max_changed_files: int | None = typer.Option(
+        None, help="Optional cap on changed files"
+    ),
+    require_human_approval: bool = typer.Option(
+        True, help="Mark resulting work as requiring human approval"
+    ),
+) -> None:
+    """Mint a time-bound delegation document for an agent."""
+    issued_at = time.time()
+    delegation = AgentDelegation(
+        agent_id=agent_id,
+        delegated_by=delegated_by,
+        purpose=purpose,
+        issued_at=issued_at,
+        expires_at=issued_at + ttl_minutes * 60,
+        scopes=(
+            AgentGitScope(
+                repo=repo,
+                actions=frozenset(
+                    action
+                    or (
+                        AgentGitAction.CREATE_REF,
+                        AgentGitAction.COMMIT,
+                        AgentGitAction.PUSH,
+                    )
+                ),
+                ref_prefixes=tuple(ref_prefix or ("refs/agents/",)),
+                protected_paths=tuple(protected_path or ()),
+                max_changed_files=max_changed_files,
+                require_human_approval=require_human_approval,
+            ),
+        ),
+    )
+    _write_or_print_json(delegation.to_dict(), output)
+
+
+@agent_git_app.command("check")
+def agent_git_check(
+    delegation_file: Path = typer.Argument(help="Delegation JSON file"),
+    repo: str = typer.Option(..., help="Repository slug to evaluate"),
+    action: AgentGitAction = typer.Option(..., help="Requested git action"),
+    ref: str = typer.Option(..., help="Target git ref"),
+    changed_file: list[str] | None = typer.Option(
+        None, "--changed-file", help="Changed file path; repeat for multiple"
+    ),
+) -> None:
+    """Evaluate a requested git action against a delegation."""
+    delegation = AgentDelegation.from_dict(json.loads(delegation_file.read_text()))
+    decision = evaluate_action(
+        delegation,
+        repo=repo,
+        action=action,
+        ref=ref,
+        changed_files=changed_file or (),
+    )
+    _write_or_print_json(decision.to_dict(), None)
+    raise typer.Exit(code=0 if decision.allowed else 1)
+
+
+@agent_git_app.command("attest")
+def agent_git_attest(
+    delegation_file: Path = typer.Argument(help="Delegation JSON file"),
+    repo: str = typer.Option(..., help="Repository slug"),
+    task_id: str = typer.Option(..., help="Task id for the agent workspace"),
+    action: AgentGitAction = typer.Option(
+        AgentGitAction.COMMIT, help="Attested action"
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write attestation JSON to this path"
+    ),
+    check: list[str] | None = typer.Option(
+        None, "--check", help="Check command that was run"
+    ),
+    tool: list[str] | None = typer.Option(
+        None, "--tool", help="Tool used by the agent"
+    ),
+    changed_file: list[str] | None = typer.Option(
+        None, "--changed-file", help="Changed file path; repeat for multiple"
+    ),
+    base_ref: str = typer.Option("refs/heads/main", help="Workspace base ref"),
+    trailers: bool = typer.Option(
+        False, help="Print git commit trailers instead of JSON"
+    ),
+) -> None:
+    """Create structured provenance for a commit, PR, or audit log."""
+    delegation = AgentDelegation.from_dict(json.loads(delegation_file.read_text()))
+    workspace = AgentGitWorkspace(
+        agent_id=delegation.agent_id,
+        task_id=task_id,
+        repo=repo,
+        ref=agent_ref(delegation.agent_id, task_id),
+        base_ref=base_ref,
+    )
+    attestation = AgentGitAttestation(
+        delegation=delegation,
+        workspace=workspace,
+        action=action,
+        checks=tuple(check or ()),
+        tools_used=tuple(tool or ()),
+        changed_files=tuple(changed_file or ()),
+    )
+    if trailers:
+        console.print("\n".join(attestation.commit_trailers()))
+        return
+    _write_or_print_json(attestation.to_dict(), output)
+
+
+def _write_or_print_json(data: dict, output: Path | None) -> None:
+    """Write JSON to disk or stdout."""
+    rendered = json.dumps(data, indent=2, sort_keys=True)
+    if output:
+        output.write_text(rendered + "\n")
+        console.print(f"[green]Wrote:[/green] {output}")
+    else:
+        console.print(rendered)
 
 
 def _print_org_status(org: Organization) -> None:
