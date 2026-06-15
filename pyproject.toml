@@ -41,7 +41,7 @@ api = [
     "email-validator~=2.0",
     "sqlalchemy~=2.0",
     "alembic~=1.14",
-    "apscheduler~=3.10",
+    "apscheduler~=3.11",
 ]
 llm = [
     "anthropic~=0.52.0",
