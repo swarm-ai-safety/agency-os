@@ -53,7 +53,7 @@ dashboard = [
     "plotly~=5.0",
 ]
 metering = [
-    "stripe~=7.0.0",
+    "stripe~=15.0.1",
 ]
 billing = [
     "agency-os-private[billing]>=0.1.0",
